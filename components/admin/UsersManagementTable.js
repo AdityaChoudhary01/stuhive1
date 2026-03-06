@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react"; 
-import { toggleUserRole, deleteUser, getAllUsers } from "@/actions/admin.actions"; // 🚀 Imported getAllUsers
+import { toggleUserRole, deleteUser, getAllUsers } from "@/actions/admin.actions"; 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,12 +21,14 @@ export default function UserManagementTable({ initialUsers }) {
 
   const { toast } = useToast();
 
-  const handleToggleRole = async (userId, currentRole) => {
+  const handleToggleRole = async (userId) => {
     setLoadingId(userId);
-    const res = await toggleUserRole(userId, currentRole);
+    // 🚀 THE FIX: Only send userId. Server calculates the new role safely.
+    const res = await toggleUserRole(userId); 
     if (res.success) {
-      setUsers(users.map(u => u._id === userId ? { ...u, role: currentRole === 'admin' ? 'user' : 'admin' } : u));
-      toast({ title: "Authority Updated", description: `User is now a ${currentRole === 'admin' ? 'User' : 'Admin'}.` });
+      // 🚀 THE FIX: Update local state to match the new server state
+      setUsers(users.map(u => u._id === userId ? { ...u, role: res.newRole } : u));
+      toast({ title: "Authority Updated", description: `User is now a ${res.newRole === 'admin' ? 'Admin' : 'User'}.` });
     } else {
       toast({ title: "Update Failed", description: res.error, variant: "destructive" });
     }
@@ -163,7 +165,7 @@ export default function UserManagementTable({ initialUsers }) {
                       variant="ghost" 
                       size="sm" 
                       className={`h-9 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${user.role === 'admin' ? 'hover:bg-red-500/10 hover:text-red-400 text-white/40' : 'hover:bg-cyan-500/10 hover:text-cyan-400 text-white/40'}`}
-                      onClick={() => handleToggleRole(user._id, user.role)}
+                      onClick={() => handleToggleRole(user._id)} // 🚀 Pass only ID
                       disabled={loadingId === user._id || isMainAdmin}
                     >
                       {loadingId === user._id ? (

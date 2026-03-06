@@ -6,15 +6,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import UserManagementTable from "./UsersManagementTable";
 import NoteModerationTable from "./NoteModerationTable";
 import BlogModerationTable from "./BlogModerationTable";
-import AdminAnalyticsClient from "./AdminAnalyticsClient"; // 🚀 ADDED: Import your Analytics UI
-import { FaUsers, FaFileAlt, FaPenNib, FaChartLine } from "react-icons/fa"; // 🚀 ADDED: FaChartLine
+import AdminAnalyticsClient from "./AdminAnalyticsClient"; 
+import OpportunityManagementTable from "./OpportunityManagementTable"; // 🚀 ADDED: Import new Sarkari table
+import { FaUsers, FaFileAlt, FaPenNib, FaChartLine, FaBriefcase } from "react-icons/fa"; // 🚀 ADDED: FaBriefcase
 
-export default function AdminTabs({ users, notes, blogs, analyticsData }) {
+// 🚀 ADDED: opportunities prop
+export default function AdminTabs({ users, notes, blogs, analyticsData, opportunities }) {
   return (
-    // You can change defaultValue to "users" if you prefer
     <Tabs defaultValue="analytics" className="w-full">
-      {/* 🚀 FIXED: Changed to grid-cols-2 md:grid-cols-4 for better mobile layout */}
-      <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-8 h-auto md:h-12 bg-secondary/20 p-1 gap-1">
+      {/* 🚀 FIXED: Changed md:grid-cols-4 to md:grid-cols-5 to fit the new tab */}
+      <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-8 h-auto md:h-12 bg-secondary/20 p-1 gap-1">
         <TabsTrigger value="analytics" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
           <FaChartLine /> Analytics
         </TabsTrigger>
@@ -27,9 +28,12 @@ export default function AdminTabs({ users, notes, blogs, analyticsData }) {
         <TabsTrigger value="blogs" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
           <FaPenNib /> Blogs
         </TabsTrigger>
+        {/* 🚀 ADDED: New Exam/Jobs Tab Trigger */}
+        <TabsTrigger value="opportunities" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
+          <FaBriefcase /> Exam/Jobs
+        </TabsTrigger>
       </TabsList>
 
-      {/* 🚀 ADDED: Analytics Tab Content */}
       <TabsContent value="analytics" className="mt-0">
         <Card className="border-none shadow-none bg-transparent">
           <CardContent className="p-0">
@@ -62,6 +66,15 @@ export default function AdminTabs({ users, notes, blogs, analyticsData }) {
         <Card className="border-none shadow-none bg-transparent">
           <CardContent className="p-0">
             <BlogModerationTable initialBlogs={blogs} />
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* 🚀 ADDED: New Exam/Jobs Tab Content */}
+      <TabsContent value="opportunities" className="mt-0">
+        <Card className="border-none shadow-none bg-transparent">
+          <CardContent className="p-0">
+            <OpportunityManagementTable initialData={opportunities || []} />
           </CardContent>
         </Card>
       </TabsContent>

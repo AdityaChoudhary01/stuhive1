@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getUserStudyPlans } from "@/actions/planner.actions";
 import PlannerClient from "@/components/planner/PlannerClient";
-import { Target } from "lucide-react"; // Removed Calendar since it wasn't used in this file
+import { Target } from "lucide-react"; 
 
 export const metadata = {
   title: "Study Planner | StuHive",
@@ -17,7 +17,6 @@ export default async function PlannerPage() {
   const { plans } = await getUserStudyPlans(session.user.id);
 
   return (
-    // 🚀 Removed bg-[#0a0118] so it uses the global background
     <main className="min-h-screen pt-28 pb-20 px-4">
       
       <div className="max-w-5xl mx-auto relative z-10">

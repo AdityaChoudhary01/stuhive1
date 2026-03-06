@@ -5,12 +5,14 @@ import User from "@/lib/models/User";
 import Note from "@/lib/models/Note";
 import Blog from "@/lib/models/Blog";
 import Collection from "@/lib/models/Collection";
-import SiteAnalytics from "@/lib/models/SiteAnalytics"; // 🚀 ADDED: Analytics Model
+import SiteAnalytics from "@/lib/models/SiteAnalytics"; 
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { deleteFileFromR2 } from "@/lib/r2"; // ✅ Imported R2 Helper
+import { deleteFileFromR2 } from "@/lib/r2"; 
 import { createNotification } from "@/actions/notification.actions";
+import Opportunity from "@/lib/models/Opportunity";
+
 // Helper to check admin status
 async function isAdmin() {
   const session = await getServerSession(authOptions);
@@ -18,7 +20,7 @@ async function isAdmin() {
 }
 
 /**
- * 🚀 NEW: FETCH MACRO DASHBOARD ANALYTICS
+ * 🚀 FETCH MACRO DASHBOARD ANALYTICS
  */
 export async function getAdminDashboardData() {
   await connectDB();
@@ -50,11 +52,11 @@ export async function getAdminDashboardData() {
       // 2. Global Blog Stats
       Blog.aggregate([{ $group: { _id: null, totalViews: { $sum: "$viewCount" } } }]),
 
-      // 3. Top Growing Notes (Views) - 🚀 ADDED slug
-      Note.find().sort({ viewCount: -1 }).limit(5).select('title slug viewCount user').populate('user', 'name').lean(),
+      // 3. Top Growing Notes (Views)
+      Note.find().sort({ viewCount: -1 }).limit(5).select('title viewCount user').populate('user', 'name').lean(),
 
-      // 4. Top Downloaded Notes - 🚀 ADDED slug
-      Note.find().sort({ downloadCount: -1 }).limit(5).select('title slug downloadCount user').populate('user', 'name').lean(),
+      // 4. Top Downloaded Notes
+      Note.find().sort({ downloadCount: -1 }).limit(5).select('title downloadCount user').populate('user', 'name').lean(),
 
       // 5. Top Growing Blogs
       Blog.find().sort({ viewCount: -1 }).limit(5).select('title viewCount author').populate('author', 'name').lean(),
@@ -112,7 +114,7 @@ export async function getAdminStats() {
 }
 
 /**
- * 🚀 UPDATED: GET ALL USERS WITH PAGINATION
+ * 🚀 GET ALL USERS WITH PAGINATION
  */
 export async function getAllUsers(page = 1, limit = 20) {
   await connectDB();
@@ -167,9 +169,9 @@ export async function getAllUsers(page = 1, limit = 20) {
 }
 
 /**
- * TOGGLE USER ROLE
+ * 🚀 FIXED: TOGGLE USER ROLE
  */
-export async function toggleUserRole(userId, newRole) {
+export async function toggleUserRole(userId) {
   await connectDB();
   if (!(await isAdmin())) return { error: "Unauthorized" };
 
@@ -182,11 +184,13 @@ export async function toggleUserRole(userId, newRole) {
       return { success: false, error: "Action Denied: You cannot demote the Main Admin." };
     }
 
+    // 🚀 THE FIX: Automatically flip the role based on what it currently is in the DB
+    const newRole = targetUser.role === 'admin' ? 'user' : 'admin';
     targetUser.role = newRole;
     await targetUser.save();
     
     revalidatePath("/admin");
-    return { success: true };
+    return { success: true, newRole }; // Send the new role back to the client
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -208,7 +212,6 @@ export async function deleteUser(userId) {
       return { success: false, error: "Action Denied: You cannot delete the Main Admin." };
     }
 
-    // ✅ NEW: Fetch all user's content to delete files from R2 BEFORE deleting the DB records
     const userNotes = await Note.find({ user: userId }, 'fileKey thumbnailKey');
     const userBlogs = await Blog.find({ author: userId }, 'coverImageKey');
 
@@ -289,13 +292,12 @@ export async function toggleNoteFeatured(noteId, currentState) {
     { new: true }
   );
 
-  // 🚀 TRIGGER NOTIFICATION IF THE NOTE WAS JUST FEATURED (Now using slug)
   if (newState && updatedNote?.user) {
     await createNotification({
       recipientId: updatedNote.user,
       type: 'FEATURED',
       message: `Congratulations! Your note "${updatedNote.title}" was featured by an Admin.`,
-      link: `/notes/${updatedNote.slug || updatedNote._id}` // 🚀 Fallback to _id just in case
+      link: `/notes/${updatedNote._id}`
     });
   }
 
@@ -311,7 +313,7 @@ export async function adminUpdateNote(noteId, updateData) {
   try {
     const updatedNote = await Note.findByIdAndUpdate(noteId, updateData, { new: true }).lean();
     revalidatePath("/admin");
-    revalidatePath(`/notes/${updatedNote.slug || noteId}`); // 🚀 Revalidate using slug
+    revalidatePath(`/notes/${noteId}`);
     revalidatePath("/search");
     
     return { success: true, note: JSON.parse(JSON.stringify(updatedNote)) };
@@ -328,11 +330,9 @@ export async function adminDeleteNote(noteId) {
     const note = await Note.findById(noteId);
     if (!note) return { success: false, error: "Note not found" };
     
-    // ✅ NEW: Delete files from R2
     if (note.fileKey) await deleteFileFromR2(note.fileKey);
     if (note.thumbnailKey) await deleteFileFromR2(note.thumbnailKey);
 
-    // Cleanup MongoDB references
     await Promise.all([
       User.updateMany({ savedNotes: noteId }, { $pull: { savedNotes: noteId } }),
       Collection.updateMany({ notes: noteId }, { $pull: { notes: noteId } }),
@@ -389,13 +389,12 @@ export async function toggleBlogFeatured(blogId, currentState) {
     { new: true }
   );
 
-  // 🚀 TRIGGER NOTIFICATION IF THE BLOG WAS JUST FEATURED
   if (newState && updatedBlog?.author) {
     await createNotification({
       recipientId: updatedBlog.author,
       type: 'FEATURED',
       message: `Congratulations! Your article "${updatedBlog.title}" was featured by an Admin.`,
-      link: `/blogs/${updatedBlog.slug}` // Blogs route using their slug
+      link: `/blogs/${updatedBlog.slug}`
     });
   }
 
@@ -428,7 +427,6 @@ export async function adminDeleteBlog(blogId) {
     const blog = await Blog.findById(blogId);
     if (!blog) return { success: false, error: "Blog not found" };
     
-    // ✅ NEW: Delete cover image from R2
     if (blog.coverImageKey) await deleteFileFromR2(blog.coverImageKey);
 
     await Promise.all([
@@ -438,6 +436,90 @@ export async function adminDeleteBlog(blogId) {
     
     revalidatePath("/admin");
     revalidatePath("/blogs");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// --- OPPORTUNITY (SARKARI) MODERATION ---
+
+export async function getAllOpportunities(page = 1, limit = 50) {
+  await connectDB();
+  if (!(await isAdmin())) return { error: "Unauthorized" };
+  
+  const skip = (page - 1) * limit;
+  const [opportunities, total] = await Promise.all([
+    Opportunity.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Opportunity.countDocuments()
+  ]);
+
+  return { 
+    opportunities: JSON.parse(JSON.stringify(opportunities)), 
+    total, 
+    totalPages: Math.ceil(total / limit) 
+  };
+}
+
+export async function createOpportunity(data) {
+  await connectDB();
+  if (!(await isAdmin())) return { error: "Unauthorized" };
+  
+  try {
+    const baseSlug = data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const randomString = Math.random().toString(36).substring(2, 7);
+    const slug = `${baseSlug}-${randomString}`;
+
+    const newOpp = await Opportunity.create({ ...data, slug });
+    revalidatePath("/admin");
+    revalidatePath("/updates");
+    return { success: true, opportunity: JSON.parse(JSON.stringify(newOpp)) };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateOpportunity(id, data) {
+  await connectDB();
+  if (!(await isAdmin())) return { error: "Unauthorized" };
+  
+  try {
+    const updated = await Opportunity.findByIdAndUpdate(id, data, { new: true }).lean();
+    revalidatePath("/admin");
+    revalidatePath("/updates");
+    revalidatePath(`/updates/${updated.slug}`);
+    return { success: true, opportunity: JSON.parse(JSON.stringify(updated)) };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteOpportunity(id) {
+  await connectDB();
+  if (!(await isAdmin())) return { error: "Unauthorized" };
+  
+  try {
+    await Opportunity.findByIdAndDelete(id);
+    revalidatePath("/admin");
+    revalidatePath("/updates");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function toggleOpportunityPublish(id, currentState) {
+  await connectDB();
+  if (!(await isAdmin())) return { error: "Unauthorized" };
+  
+  try {
+    await Opportunity.findByIdAndUpdate(id, { isPublished: !currentState });
+    revalidatePath("/admin");
+    revalidatePath("/updates");
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };

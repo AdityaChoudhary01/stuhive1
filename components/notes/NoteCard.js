@@ -169,7 +169,6 @@ export default function NoteCard({ note, priority = false }) {
             </Badge>
           </div>
 
-          {/* 🚀 FIXED: Links now point to the SEO slug instead of _id */}
           <Link href={`/notes/${note.slug || note._id}`} tabIndex={-1} aria-hidden="true" className="block w-full h-full relative z-10">
             {thumbnailUrl ? (
               <Image
@@ -199,7 +198,6 @@ export default function NoteCard({ note, priority = false }) {
         {/* --- BOTTOM SECTION (TEXT) --- */}
         <div className="flex flex-col flex-grow p-5 sm:p-6 pt-5 relative z-10 bg-[#050505]">
           <div className="flex-grow space-y-3 block mb-6">
-            {/* 🚀 FIXED: Title Link points to SEO Slug */}
             <Link href={`/notes/${note.slug || note._id}`} title={`Download notes for ${note.course}`} className="outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 rounded-lg block">
               <h3
                 className="font-extrabold text-lg sm:text-xl tracking-tight leading-tight line-clamp-2 text-white/95
@@ -254,7 +252,8 @@ export default function NoteCard({ note, priority = false }) {
                 height={36}
                 decoding="async"
                 loading="lazy"
-                className="w-9 h-9 rounded-full border border-white/20 shrink-0 object-cover"
+                // 🚀 FIX: Added min-w-[36px] min-h-[36px] and aspect-square to prevent oval squishing
+                className="w-9 h-9 min-w-[36px] min-h-[36px] aspect-square rounded-full border border-white/20 shrink-0 object-cover"
               />
               <div className="flex flex-col min-w-0">
                 <span className="text-[11px] font-extrabold truncate text-white/90">{note.user?.name || "Unknown"}</span>

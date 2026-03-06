@@ -1,5 +1,11 @@
-import { getAdminStats, getAllUsers, getAdminDashboardData } from "@/actions/admin.actions";
-import { getAllNotes, getAllBlogs } from "@/actions/admin.actions"; // 🚀 Use Admin moderation actions for pagination
+import { 
+  getAdminStats, 
+  getAllUsers, 
+  getAdminDashboardData, 
+  getAllNotes, 
+  getAllBlogs, 
+  getAllOpportunities // 🚀 ADDED: Import new server action
+} from "@/actions/admin.actions"; 
 import AdminTabs from "@/components/admin/AdminTabs";
 import StatsCard from "@/components/admin/StatsCards"; 
 import { FaShieldAlt, FaUsers, FaFileAlt, FaPenNib } from "react-icons/fa";
@@ -11,13 +17,13 @@ export const metadata = {
 
 export default async function AdminDashboardPage() {
   // 🚀 Fetch all data in parallel
-  // Note: getAllUsers, getAllNotes, and getAllBlogs now return { items, total, totalPages }
-  const [stats, usersRes, notesRes, blogsRes, analyticsData] = await Promise.all([
+  const [stats, usersRes, notesRes, blogsRes, analyticsData, opportunitiesRes] = await Promise.all([
     getAdminStats(),
-    getAllUsers(1, 20), // Increased initial limit for admin view
+    getAllUsers(1, 20), 
     getAllNotes(1, 20), 
     getAllBlogs(1, 20),
-    getAdminDashboardData()
+    getAdminDashboardData(),
+    getAllOpportunities(1, 50) // 🚀 Fetch Sarkari/Jobs data
   ]);
 
   // --- SERIALIZATION LAYER ---
@@ -52,6 +58,14 @@ export default async function AdminDashboardPage() {
     } : null,
     coverImageKey: blog.coverImageKey || null,
     createdAt: blog.createdAt instanceof Date ? blog.createdAt.toISOString() : new Date(blog.createdAt).toISOString(),
+  }));
+
+  // 🚀 Handle Paginated Opportunity (Sarkari) Data
+  const serializedOpportunities = (opportunitiesRes.opportunities || []).map(opp => ({
+    ...opp,
+    _id: opp._id.toString(),
+    createdAt: opp.createdAt instanceof Date ? opp.createdAt.toISOString() : new Date(opp.createdAt).toISOString(),
+    updatedAt: opp.updatedAt instanceof Date ? opp.updatedAt.toISOString() : new Date(opp.updatedAt).toISOString(),
   }));
 
   return (
@@ -106,6 +120,7 @@ export default async function AdminDashboardPage() {
             notes={serializedNotes} 
             blogs={serializedBlogs} 
             analyticsData={analyticsData} 
+            opportunities={serializedOpportunities} 
           />
       </div>
     </div>

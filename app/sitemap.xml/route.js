@@ -4,7 +4,8 @@ import Blog from "@/lib/models/Blog";
 import Note from "@/lib/models/Note";
 import User from "@/lib/models/User";
 import Collection from "@/lib/models/Collection"; 
-import StudyEvent from "@/lib/models/StudyEvent"; // 🚀 ADDED: For Public Roadmaps
+import StudyEvent from "@/lib/models/StudyEvent"; 
+import Opportunity from "@/lib/models/Opportunity"; // 🚀 ADDED
 
 const BASE_URL = 'https://www.stuhive.in';
 
@@ -22,13 +23,12 @@ export async function GET() {
 
     // 🚀 Fetch all models in parallel for maximum speed
     const blogsPromise = Blog.find({}).select("slug updatedAt").lean();
-    // 🚀 FIXED: Fetch slug instead of just _id
     const notesPromise = Note.find({}).select("slug _id updatedAt").lean(); 
     const usersPromise = User.find({}).select("_id updatedAt").lean();
     const collectionsPromise = Collection.find({ visibility: 'public' }).select("slug updatedAt").lean();
-    const roadmapsPromise = StudyEvent.find({ isPublic: true }).select("slug updatedAt").lean(); // 🚀 ADDED
-    
-    // Get all unique universities and their latest update time directly from Notes
+    const roadmapsPromise = StudyEvent.find({ isPublic: true }).select("slug updatedAt").lean(); 
+    const oppsPromise = Opportunity.find({ isPublished: true }).select("slug updatedAt").lean(); // 🚀 ADDED
+
     const universitiesPromise = Note.aggregate([
       { $match: { university: { $ne: null, $ne: "" } } },
       { $group: { 
@@ -37,25 +37,26 @@ export async function GET() {
       }}
     ]);
 
-    const [blogs, notes, users, collections, universities, roadmaps] = await Promise.all([
+    const [blogs, notes, users, collections, universities, roadmaps, opportunities] = await Promise.all([
       blogsPromise,
       notesPromise,
       usersPromise,
       collectionsPromise,
       universitiesPromise,
-      roadmapsPromise
+      roadmapsPromise,
+      oppsPromise // 🚀 ADDED
     ]);
 
     // 🚀 STATIC ROUTES
     const staticRoutes = [
       "", "/about", "/contact", "/blogs", "/search", "/shared-collections", "/requests",
-      "/login","/signup", "/roadmaps", // 🚀 ADDED: Main roadmaps hub
+      "/login","/signup", "/roadmaps", "/updates", // 🚀 ADDED: /updates
       "/donate", "/supporters", "/terms", "/privacy", "/dmca", "/hive-points"
     ].map(route => ({
       url: `${BASE_URL}${route}`,
       lastModified: new Date().toISOString(),
-      priority: route === "" ? "1.0" : route === "/requests" || route === "/roadmaps" ? "0.9" : "0.5",
-      changefreq: route === "/requests" || route === "/roadmaps" ? "daily" : "monthly",
+      priority: route === "" ? "1.0" : route === "/requests" || route === "/roadmaps" || route === "/updates" ? "0.9" : "0.5",
+      changefreq: route === "/requests" || route === "/roadmaps" || route === "/updates" ? "daily" : "monthly",
     }));
 
     const blogPages = blogs
@@ -67,7 +68,6 @@ export async function GET() {
         changefreq: "weekly",
       }));
 
-    // 🚀 FIXED: Use the new SEO slug for the sitemap URLs
     const notePages = notes.map(note => ({
       url: `${BASE_URL}/notes/${note.slug || note._id.toString()}`,
       lastModified: formatDate(note.updatedAt),
@@ -91,7 +91,6 @@ export async function GET() {
         changefreq: "weekly",
       }));
 
-    // 🚀 DYNAMIC ROADMAP PAGES
     const roadmapPages = roadmaps
       .filter(rm => rm.slug)
       .map(rm => ({
@@ -101,7 +100,16 @@ export async function GET() {
         changefreq: "weekly",
       }));
 
-    // DYNAMIC UNIVERSITY HUB PAGES
+    // 🚀 DYNAMIC EXAM/JOB PAGES
+    const oppPages = opportunities
+      .filter(opp => opp.slug)
+      .map(opp => ({
+        url: `${BASE_URL}/updates/${opp.slug}`,
+        lastModified: formatDate(opp.updatedAt),
+        priority: "0.9", // High priority for fresh news
+        changefreq: "daily",
+      }));
+
     const universityPages = universities.map(univ => {
       const slug = univ._id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
       return {
@@ -120,7 +128,8 @@ export async function GET() {
       ...notePages, 
       ...profilePages, 
       ...collectionPages,
-      ...roadmapPages // 🚀 ADDED
+      ...roadmapPages,
+      ...oppPages // 🚀 ADDED
     ];
 
     const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
