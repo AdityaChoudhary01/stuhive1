@@ -343,7 +343,7 @@ export default function PlannerClient({ initialPlans, userId, userBadges = [] })
                   className="mt-8 w-full rounded-2xl bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[10px] hover:bg-cyan-500 hover:text-black hover:border-cyan-500 transition-all py-6 shadow-xl"
                   onClick={() => handleShare(plan)}
                 >
-                  <Share2 className="mr-2 h-4 w-4" /> Disseminate Path
+                  <Share2 className="mr-2 h-4 w-4" /> Share Path
                 </Button>
               )}
             </div>
@@ -390,8 +390,8 @@ export default function PlannerClient({ initialPlans, userId, userBadges = [] })
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button type="button" variant="ghost" className="flex-1 rounded-2xl h-14 text-gray-500 font-bold hover:bg-white/5" onClick={() => setShowModal(false)}>Abort</Button>
-                <Button type="submit" className="flex-[2] h-14 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest text-[11px] shadow-[0_10px_30px_rgba(34,211,238,0.3)]">Deploy Roadmap</Button>
+                <Button type="button" variant="ghost" className="flex-1 rounded-2xl h-14 text-gray-500 font-bold hover:bg-white/5" onClick={() => setShowModal(false)}>Cancel</Button>
+                <Button type="submit" className="flex-[2] h-14 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest text-[11px] shadow-[0_10px_30px_rgba(34,211,238,0.3)]">Publish Roadmap</Button>
               </div>
             </form>
           </div>
