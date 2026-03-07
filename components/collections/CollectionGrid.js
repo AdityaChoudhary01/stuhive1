@@ -3,10 +3,25 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { FolderHeart, ArrowRight, BookOpen, Loader2, ArrowDown, Globe, User, Lock, GraduationCap } from "lucide-react";
+import { FolderHeart, ArrowRight, BookOpen, Loader2, ArrowDown, Globe, User, Lock, GraduationCap, Trophy, School, Lightbulb } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getPublicCollections, getUserCollections } from "@/actions/collection.actions";
+
+// 🚀 Dynamic Config Helper for Categories
+const getCategoryDetails = (cat) => {
+  switch (cat) {
+    case 'School': 
+      return { label: "School", icon: <BookOpen size={10} className="text-pink-400" /> };
+    case 'Competitive Exams': 
+      return { label: "Exam", icon: <Trophy size={10} className="text-amber-400" /> };
+    case 'Other': 
+      return { label: "Context", icon: <Lightbulb size={10} className="text-blue-400" /> };
+    case 'University':
+    default: 
+      return { label: "Univ", icon: <School size={10} className="text-cyan-400" /> };
+  }
+};
 
 export default function CollectionGrid({ initialCollections, totalCount, initialPage = 1 }) {
   const { data: session } = useSession();
@@ -169,7 +184,7 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
               {myCollections.map((col, index) => (
-                <CollectionCard key={col._id} col={col} index={index} isPersonal={true} />
+                <CollectionCard key={col._id} col={col} index={index} isPersonal={true} sessionUser={session.user} />
               ))}
             </div>
           )}
@@ -179,8 +194,14 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
   );
 }
 
-function CollectionCard({ col, index, isPersonal }) {
+function CollectionCard({ col, index, isPersonal, sessionUser }) {
   const targetUrl = isPersonal ? `/collections/${col._id}` : `/shared-collections/${col.slug}`;
+  const catDetails = getCategoryDetails(col.category);
+
+  // 🚀 FIX: For personal collections, user data might not be populated in the fetch, 
+  // so we fallback to the sessionUser passed from the parent.
+  const authorName = col.user?.name || sessionUser?.name || "Curator";
+  const authorAvatar = col.user?.avatar || sessionUser?.avatar || sessionUser?.image;
 
   return (
     <div itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem" className="h-full">
@@ -216,11 +237,10 @@ function CollectionCard({ col, index, isPersonal }) {
                   <FolderHeart size={20} className="sm:w-6 sm:h-6" strokeWidth={1.5} aria-hidden="true" />
                 </div>
 
-                {col.university && (
-                  <span className="flex items-center gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md w-fit truncate max-w-[120px] sm:max-w-[150px]">
-                    <GraduationCap size={10} aria-hidden="true" className="shrink-0" /> <span className="truncate">{col.university}</span>
-                  </span>
-                )}
+                {/* 🚀 DYNAMIC CATEGORY BADGE */}
+                <span className={`flex items-center gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 px-2 py-0.5 rounded-md w-fit truncate max-w-[120px] sm:max-w-[150px]`}>
+                   {catDetails.icon} <span className="truncate">{col.university || catDetails.label}</span>
+                </span>
               </div>
 
               <div className="flex items-center gap-1.5 px-2 py-1 sm:px-2.5 bg-white/5 border border-white/10 rounded-full h-fit shrink-0">
@@ -243,12 +263,12 @@ function CollectionCard({ col, index, isPersonal }) {
           <footer className="pt-3 sm:pt-5 border-t border-white/10 flex items-center justify-between mt-auto relative z-10">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 pr-2">
               <Avatar className="h-6 w-6 sm:h-8 sm:w-8 border border-white/20 shrink-0">
-                <AvatarImage src={col.user?.avatar} alt={col.user?.name || "User"} />
-                <AvatarFallback className="bg-gray-800 text-gray-300 text-[8px] sm:text-xs font-black">{col.user?.name?.charAt(0) || "U"}</AvatarFallback>
+                <AvatarImage src={authorAvatar} alt={authorName} />
+                <AvatarFallback className="bg-gray-800 text-gray-300 text-[8px] sm:text-xs font-black">{authorName.charAt(0)}</AvatarFallback>
               </Avatar>
               <div className="flex flex-col min-w-0">
                 <span className="text-[10px] sm:text-xs font-black text-gray-300 truncate max-w-[80px] sm:max-w-[100px] group-hover:text-white transition-colors">
-                  {col.user?.name || "Me"}
+                  {isPersonal ? "Me" : authorName}
                 </span>
 
                 {isPersonal && col.visibility === "private" ? (

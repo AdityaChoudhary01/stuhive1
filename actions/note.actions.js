@@ -213,7 +213,7 @@ export async function getRelatedNotes(noteId) {
       _id: { $ne: noteId }, 
       $or: orConditions
     })
-    .select('title slug university course subject year rating numReviews downloadCount uploadDate fileType fileName isFeatured fileKey thumbnailKey') 
+    .select('title slug university course subject year rating numReviews downloadCount uploadDate fileType fileName isFeatured fileKey thumbnailKey category isPaid price') 
     .populate('user', 'name avatar role')
     .limit(4)
     .sort({ rating: -1, downloadCount: -1 })
@@ -232,19 +232,34 @@ export async function getRelatedNotes(noteId) {
 }
 
 /**
- * 🚀 CREATE NOTE & AWARD POINTS (UPDATED WITH CATEGORY)
+ * 🚀 CREATE NOTE & AWARD POINTS (UPDATED WITH MARKETPLACE FIELDS)
  */
-export async function createNote({ title, description, category, university, course, subject, year, fileData, userId }) {
+export async function createNote({ title, description, category, university, course, subject, year, isPaid, price, previewPages, fileData, userId }) {
   await connectDB();
   try {
+    // Basic validation to protect marketplace integrity
+    const finalIsPaid = Boolean(isPaid);
+    const finalPrice = finalIsPaid ? Number(price) : 0;
+    const finalPreviewPages = finalIsPaid ? Number(previewPages) : 0;
+
+    if (finalIsPaid && (finalPrice < 10 || finalPrice > 1000)) {
+      return { success: false, error: "Price must be between ₹10 and ₹1000" };
+    }
+
     const newNote = new Note({
       title,
       description,
-      category: category || 'University', // 🚀 Handle category dynamic selection
+      category: category || 'University', 
       university,
       course,
       subject,
-      year: String(year), // 🚀 Ensure year is string to handle "Class 12th" or "2025"
+      year: String(year),
+      
+      // 🚀 MARKETPLACE CONFIG
+      isPaid: finalIsPaid,
+      price: finalPrice,
+      previewPages: finalPreviewPages,
+
       fileName: fileData.fileName,
       fileKey: fileData.fileKey,          
       thumbnailKey: fileData.thumbnailKey, 
@@ -275,7 +290,7 @@ export async function createNote({ title, description, category, university, cou
 }
 
 /**
- * 🚀 UPDATE NOTE (UPDATED WITH CATEGORY)
+ * 🚀 UPDATE NOTE (UPDATED WITH MARKETPLACE FIELDS)
  */
 export async function updateNote(noteId, data, userId) {
   await connectDB();
@@ -292,11 +307,18 @@ export async function updateNote(noteId, data, userId) {
 
     note.title = data.title || note.title;
     note.description = data.description || note.description;
-    note.category = data.category || note.category; // 🚀 Handle category dynamic selection
+    note.category = data.category || note.category; 
     note.university = data.university || note.university;
     note.course = data.course || note.course;
     note.subject = data.subject || note.subject;
     note.year = data.year || note.year;
+
+    // 🚀 UPDATE MARKETPLACE LOGIC
+    if (data.hasOwnProperty('isPaid')) {
+      note.isPaid = Boolean(data.isPaid);
+      note.price = note.isPaid ? Number(data.price) : 0;
+      note.previewPages = note.isPaid ? Number(data.previewPages) : 0;
+    }
 
     // Optional file data update
     if (data.fileData) {
@@ -585,14 +607,41 @@ export async function deleteReview(noteId, reviewId) {
 }
 
 /**
- * GET NOTE DOWNLOAD URL
+ * 🚀 SECURED GET NOTE DOWNLOAD URL
+ * Ensures hackers cannot download paid notes without purchasing.
  */
-export async function getNoteDownloadUrl(fileKey, fileName) {
+export async function getNoteDownloadUrl(noteId) {
+  await connectDB();
+  const session = await getServerSession(authOptions);
+
   try {
-    const url = await generateReadUrl(fileKey, fileName);
+    const note = await Note.findById(noteId).lean();
+    if (!note) throw new Error("Note not found");
+
+    let hasAccess = false;
+    
+    // 1. Is the note free?
+    if (!note.isPaid || note.price === 0) {
+        hasAccess = true;
+    } 
+    // 2. If it's paid, verify the user's permissions
+    else if (session?.user) {
+        const userId = session.user.id;
+        const user = await User.findById(userId).lean();
+        
+        if (note.user.toString() === userId) hasAccess = true; // The Creator
+        else if (user?.role === 'admin') hasAccess = true; // Admin Override
+        else if (user?.purchasedNotes?.map(id => id.toString()).includes(noteId)) hasAccess = true; // Paid Buyer
+    }
+
+    if (!hasAccess) {
+        throw new Error("Premium Note: Please purchase to unlock the download link.");
+    }
+
+    const url = await generateReadUrl(note.fileKey, note.fileName);
     return url;
   } catch (error) {
     console.error("Failed to generate R2 link:", error);
-    throw new Error("Could not get download link");
+    throw new Error(error.message || "Could not get download link");
   }
 }

@@ -7,15 +7,15 @@ import UserManagementTable from "./UsersManagementTable";
 import NoteModerationTable from "./NoteModerationTable";
 import BlogModerationTable from "./BlogModerationTable";
 import AdminAnalyticsClient from "./AdminAnalyticsClient"; 
-import OpportunityManagementTable from "./OpportunityManagementTable"; // 🚀 ADDED: Import new Sarkari table
-import { FaUsers, FaFileAlt, FaPenNib, FaChartLine, FaBriefcase } from "react-icons/fa"; // 🚀 ADDED: FaBriefcase
+import OpportunityManagementTable from "./OpportunityManagementTable"; 
+import PayoutManagementTable from "./PayoutManagementTable"; // 🚀 IMPORTED NEW TABLE
+import { FaUsers, FaFileAlt, FaPenNib, FaChartLine, FaBriefcase, FaMoneyBillWave } from "react-icons/fa"; // 🚀 ADDED MONEY ICON
 
-// 🚀 ADDED: opportunities prop
-export default function AdminTabs({ users, notes, blogs, analyticsData, opportunities }) {
+export default function AdminTabs({ users, notes, blogs, analyticsData, opportunities, pendingPayouts }) {
   return (
     <Tabs defaultValue="analytics" className="w-full">
-      {/* 🚀 FIXED: Changed md:grid-cols-4 to md:grid-cols-5 to fit the new tab */}
-      <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-8 h-auto md:h-12 bg-secondary/20 p-1 gap-1">
+      {/* 🚀 Changed to md:grid-cols-6 to fit the 6th tab cleanly */}
+      <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 mb-8 h-auto md:h-12 bg-secondary/20 p-1 gap-1">
         <TabsTrigger value="analytics" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
           <FaChartLine /> Analytics
         </TabsTrigger>
@@ -28,9 +28,12 @@ export default function AdminTabs({ users, notes, blogs, analyticsData, opportun
         <TabsTrigger value="blogs" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
           <FaPenNib /> Blogs
         </TabsTrigger>
-        {/* 🚀 ADDED: New Exam/Jobs Tab Trigger */}
         <TabsTrigger value="opportunities" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
           <FaBriefcase /> Exam/Jobs
+        </TabsTrigger>
+        {/* 🚀 NEW TAB FOR PAYOUTS */}
+        <TabsTrigger value="payouts" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
+          <FaMoneyBillWave /> Payouts
         </TabsTrigger>
       </TabsList>
 
@@ -70,7 +73,6 @@ export default function AdminTabs({ users, notes, blogs, analyticsData, opportun
         </Card>
       </TabsContent>
 
-      {/* 🚀 ADDED: New Exam/Jobs Tab Content */}
       <TabsContent value="opportunities" className="mt-0">
         <Card className="border-none shadow-none bg-transparent">
           <CardContent className="p-0">
@@ -78,6 +80,22 @@ export default function AdminTabs({ users, notes, blogs, analyticsData, opportun
           </CardContent>
         </Card>
       </TabsContent>
+
+      {/* 🚀 NEW TAB CONTENT FOR PAYOUTS */}
+      <TabsContent value="payouts" className="mt-0">
+        <Card className="border-none shadow-none bg-transparent">
+          <CardContent className="p-0">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-black text-white">Pending Payouts</h2>
+                <p className="text-muted-foreground text-sm mt-1">Creators whose wallet balance is ≥ ₹500.</p>
+              </div>
+            </div>
+            <PayoutManagementTable initialPayouts={pendingPayouts} />
+          </CardContent>
+        </Card>
+      </TabsContent>
+
     </Tabs>
   );
 }

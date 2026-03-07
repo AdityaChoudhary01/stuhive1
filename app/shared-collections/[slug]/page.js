@@ -1,7 +1,7 @@
 import { getCollectionBySlug } from "@/actions/collection.actions";
 import { notFound } from "next/navigation";
 import NoteCard from "@/components/notes/NoteCard";
-import { FolderHeart, Library, ArrowLeft, Globe, ShieldCheck, Zap, BookOpen } from "lucide-react";
+import { FolderHeart, Library, ArrowLeft, Globe, ShieldCheck, Zap, BookOpen, Trophy, School, Lightbulb } from "lucide-react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ShareCollectionButton from "@/components/collections/ShareCollectionButton";
@@ -11,6 +11,21 @@ export const revalidate = 3600;
 
 const APP_URL = process.env.NEXTAUTH_URL || "https://www.stuhive.in";
 
+// 🚀 Dynamic Config Helper for Categories
+const getCategoryDetails = (cat) => {
+  switch (cat) {
+    case 'School': 
+      return { label: "Board / School", icon: <BookOpen size={14} className="text-pink-400" /> };
+    case 'Competitive Exams': 
+      return { label: "Exam Body", icon: <Trophy size={14} className="text-amber-400" /> };
+    case 'Other': 
+      return { label: "Context", icon: <Lightbulb size={14} className="text-blue-400" /> };
+    case 'University':
+    default: 
+      return { label: "University", icon: <School size={14} className="text-cyan-400" /> };
+  }
+};
+
 // 🚀 EXTREME SEO METADATA
 export async function generateMetadata({ params }) {
   const { slug } = await params;
@@ -18,10 +33,11 @@ export async function generateMetadata({ params }) {
 
   if (!collection) return { title: "Collection Not Found | StuHive", robots: { index: false } };
 
-  const title = `${collection.name} | Study Notes by ${collection.user?.name}`;
+  const catLabel = collection.category || "Study";
+  const title = `${collection.name} | ${catLabel} Bundle by ${collection.user?.name}`;
   const description = collection.description 
     ? `${collection.description.substring(0, 150)}...` 
-    : `Access "${collection.name}", a premium academic collection of ${collection.notes?.length || 0} study resources curated by ${collection.user?.name} on StuHive.`;
+    : `Access "${collection.name}", a premium ${catLabel} collection of ${collection.notes?.length || 0} study resources curated by ${collection.user?.name} on StuHive.`;
 
   const ogImage = collection.user?.avatar || `${APP_URL}/logo512.png`;
 
@@ -31,16 +47,17 @@ export async function generateMetadata({ params }) {
     keywords: [
       collection.name, 
       collection.user?.name,
+      collection.category || "Education",
       "study notes bundle", 
       "handwritten academic notes", 
       "university resources", 
-      "exam preparation",
+      "competitive exam preparation",
       "free study materials",
       "StuHive collections",
       "curated study guide"
     ],
     authors: [{ name: collection.user?.name, url: `${APP_URL}/profile/${collection.user?._id}` }],
-    category: "Education",
+    category: collection.category || "Education",
     alternates: { 
       canonical: `${APP_URL}/shared-collections/${slug}` 
     },
@@ -88,6 +105,7 @@ export default async function PublicCollectionDetails({ params }) {
   if (!collection) return notFound();
 
   const authorProfileUrl = `${APP_URL}/profile/${collection.user?._id}`;
+  const catDetails = getCategoryDetails(collection.category);
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
@@ -120,7 +138,7 @@ export default async function PublicCollectionDetails({ params }) {
       "itemListElement": collection.notes?.map((note, index) => ({
         "@type": "ListItem",
         "position": index + 1,
-        "url": `${APP_URL}/notes/${note.slug || note._id}`, // 🚀 FIXED: Uses Slug
+        "url": `${APP_URL}/notes/${note.slug || note._id}`,
         "name": note.title
       }))
     }
@@ -132,17 +150,14 @@ export default async function PublicCollectionDetails({ params }) {
       itemScope 
       itemType="https://schema.org/CollectionPage"
     >
-      {/* JSON-LD Injection */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
 
-      {/* SEO SITEMAP */}
       <nav className="sr-only" aria-label="Collection Documents List">
         <h2>List of all study materials in {collection.name}</h2>
         <ul>
           {collection.notes?.map(note => (
             <li key={`seo-${note._id}`}>
-              {/* 🚀 FIXED: Uses Slug */}
               <a href={`${APP_URL}/notes/${note.slug || note._id}`}>{note.title}</a>
             </li>
           ))}
@@ -151,7 +166,6 @@ export default async function PublicCollectionDetails({ params }) {
 
       <div className="container relative z-10 max-w-5xl py-12 md:py-20 px-4 sm:px-6 mx-auto">
         
-        {/* Navigation Breadcrumb */}
         <nav aria-label="Breadcrumb" className="mb-10 sm:mb-16 animate-in fade-in slide-in-from-left-4 duration-500">
             <Link 
               href="/shared-collections" 
@@ -161,7 +175,6 @@ export default async function PublicCollectionDetails({ params }) {
             </Link>
         </nav>
 
-        {/* HEADER SECTION */}
         <header className="flex flex-col items-start mb-16 sm:mb-20">
           <div className="p-3.5 bg-white/[0.03] border border-white/10 rounded-2xl text-cyan-400 mb-6 shadow-sm" aria-hidden="true">
             <FolderHeart size={28} strokeWidth={1.5} />
@@ -202,6 +215,14 @@ export default async function PublicCollectionDetails({ params }) {
               </span>
             </Link>
 
+            {/* 🚀 DYNAMIC CATEGORY & INSTITUTION BADGE */}
+            <div className="flex items-center gap-2 bg-white/[0.02] text-gray-200 px-4 py-2 rounded-full border border-white/10">
+               {catDetails.icon}
+               <span className="text-sm font-medium tracking-wide">
+                 {collection.university || 'General'} <span className="text-gray-500 mx-1">•</span> {catDetails.label}
+               </span>
+            </div>
+
             <div className="flex items-center gap-2 bg-white/[0.02] text-gray-200 px-4 py-2 rounded-full border border-white/10">
                <Library size={14} className="text-gray-300" aria-hidden="true" />
                <span className="text-sm font-medium tracking-wide">
@@ -211,7 +232,6 @@ export default async function PublicCollectionDetails({ params }) {
           </div>
         </header>
 
-        {/* GRID SECTION */}
         <section aria-labelledby="collection-contents">
           <h2 id="collection-contents" className="sr-only">Documents in this collection</h2>
           
@@ -231,7 +251,6 @@ export default async function PublicCollectionDetails({ params }) {
                   itemType="https://schema.org/ListItem"
                 >
                   <meta itemProp="position" content={index + 1} />
-                  {/* 🚀 FIXED: Uses Slug */}
                   <meta itemProp="url" content={`${APP_URL}/notes/${note.slug || note._id}`} />
                   <meta itemProp="name" content={note.title} />
                   <div className="h-full">
@@ -253,12 +272,11 @@ export default async function PublicCollectionDetails({ params }) {
           )}
         </section>
 
-        {/* FOOTER CTA */}
         <footer className="mt-24 sm:mt-32 pt-12 border-t border-white/10 flex flex-col items-center text-center gap-6">
             <div className="space-y-2">
                 <h3 className="text-xl font-bold tracking-tight text-white">Share the Knowledge</h3>
                 <p className="text-gray-300 max-w-sm mx-auto text-sm leading-relaxed">
-                  Help your peers by sharing this curated curriculum. Good resources are meant to be circulated.
+                  Help your peers by sharing this curated bundle. Good resources are meant to be circulated.
                 </p>
             </div>
             

@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Image as ImageIcon, FileType, Heart, Eye, Presentation, Table as TableIcon, Loader2, School, Trophy, Lightbulb, BookOpen } from "lucide-react";
+import { Download, FileText, Image as ImageIcon, FileType, Heart, Eye, Presentation, Table as TableIcon, Loader2, School, Trophy, Lightbulb, BookOpen, Lock } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import StarRating from "@/components/common/StarRating";
 import { useSession } from "next-auth/react";
@@ -74,6 +74,12 @@ export default function NoteCard({ note, priority = false }) {
     ],
   };
 
+  // 🚀 BULLETPROOF ACCESS LOGIC FOR THE CARD
+  const isOwner = session?.user?.id && (session.user.id === note.user?._id?.toString() || session.user.id === note.user?.toString());
+  const isAdmin = session?.user?.role === 'admin';
+  const hasPurchased = session?.user?.purchasedNotes?.includes(note._id);
+  const hasAccess = !note.isPaid || note.price === 0 || hasPurchased || isOwner || isAdmin;
+
   const handleSave = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -97,17 +103,22 @@ export default function NoteCard({ note, priority = false }) {
   const handleDownload = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!note.fileKey) return toast({ title: "Error", description: "File missing.", variant: "destructive" });
+    
+    // 🚀 NEW: Block direct download if they don't have access
+    if (!hasAccess) {
+      return toast({ title: "Premium Note", description: "Click to open the note and purchase access." });
+    }
 
     setIsDownloading(true);
     try {
-      const downloadUrl = await getNoteDownloadUrl(note.fileKey, note.fileName);
-      if (!downloadUrl) throw new Error();
+      // 🚀 FIXED: Calling secure backend function with note._id only
+      const downloadUrl = await getNoteDownloadUrl(note._id);
+      if (!downloadUrl) throw new Error("Could not fetch secure link.");
       window.open(downloadUrl, "_blank");
       incrementDownloadCount(note._id).catch(() => {});
       toast({ title: "Starting Download" });
-    } catch {
-      toast({ title: "Error", description: "Failed to get link.", variant: "destructive" });
+    } catch (error) {
+      toast({ title: "Access Denied", description: error.message || "Failed to get link.", variant: "destructive" });
     } finally {
       setTimeout(() => setIsDownloading(false), 1000);
     }
@@ -162,6 +173,7 @@ export default function NoteCard({ note, priority = false }) {
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none bg-[radial-gradient(900px_circle_at_30%_10%,rgba(34,211,238,0.10),transparent_55%)]" />
 
         <div className="relative h-48 sm:h-56 w-full shrink-0 transform-gpu overflow-hidden -mb-[1px] z-0">
+          
           <div className="absolute top-4 left-4 z-40 flex flex-col items-start gap-2.5 max-w-[70%]">
             {note.isFeatured && (
               <Badge className="relative overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 border-0 text-[9px] font-black uppercase tracking-widest text-white px-3 py-1 shadow-lg">
@@ -174,6 +186,13 @@ export default function NoteCard({ note, priority = false }) {
             </Badge>
           </div>
 
+          {/* 🚀 MARKETPLACE: Price Badge */}
+          {note.isPaid && note.price > 0 && (
+            <Badge className="absolute bottom-4 right-4 z-40 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm px-3 py-1 shadow-xl border border-emerald-400/50 backdrop-blur-md">
+              ₹{note.price}
+            </Badge>
+          )}
+
           <Link href={`/notes/${note.slug || note._id}`} tabIndex={-1} aria-hidden="true" className="block w-full h-full relative z-10">
             {thumbnailUrl ? (
               <Image
@@ -184,8 +203,7 @@ export default function NoteCard({ note, priority = false }) {
                 priority={priority}
                 fetchPriority={priority ? "high" : "auto"}
                 unoptimized={true}
-                className="object-cover transition-transform transition-duration-[1500ms] ease-out group-hover:scale-[1.08]
-                  opacity-85 group-hover:opacity-100 will-change-transform transform-gpu"
+                className={`object-cover transition-all duration-[1500ms] ease-out group-hover:scale-[1.08] opacity-85 group-hover:opacity-100 will-change-transform transform-gpu ${!hasAccess ? 'blur-[2px] group-hover:blur-sm' : ''}`}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-white/30 group-hover:text-cyan-300 transition-all duration-700 bg-white/[0.02]">
@@ -246,7 +264,6 @@ export default function NoteCard({ note, priority = false }) {
           </div>
 
           <div className="flex items-center justify-between gap-2 mt-auto">
-            {/* 🚀 FIXED: Added max-w-[65%] to ensure text truncates before squishing the button or avatar */}
             <div className="flex items-center gap-2.5 overflow-hidden flex-1 max-w-[65%]">
               <div className="shrink-0">
                 <img
@@ -268,7 +285,7 @@ export default function NoteCard({ note, priority = false }) {
             <Button
               disabled={isDownloading}
               onClick={handleDownload}
-              aria-label={`Download ${note.title}`}
+              aria-label={hasAccess ? `Download ${note.title}` : `Unlock ${note.title}`}
               className="group relative h-9 rounded-full px-4 gap-1.5 shrink-0
                 bg-cyan-500/10 border border-cyan-500/30 text-cyan-300
                 font-black uppercase tracking-widest text-[10px]
@@ -283,7 +300,12 @@ export default function NoteCard({ note, priority = false }) {
                   <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <>
-                    <Download aria-hidden="true" className="h-3.5 w-3.5" /> <span>Get</span>
+                    {/* 🚀 Changed text/icon intelligently based on access */}
+                    {hasAccess ? (
+                      <><Download aria-hidden="true" className="h-3.5 w-3.5" /> <span>Get</span></>
+                    ) : (
+                      <><Lock aria-hidden="true" className="h-3.5 w-3.5 text-emerald-400 group-hover:text-black" /> <span>Unlock</span></>
+                    )}
                   </>
                 )}
               </span>

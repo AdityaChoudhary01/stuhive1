@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { FaBars, FaTimes, FaSearch, FaSignOutAlt, FaPaperPlane } from 'react-icons/fa';
-import { ChevronDown, Map, Calendar, Target, PenTool, BookOpen, BellRing } from 'lucide-react'; // 🚀 Added BellRing icon
+import { ChevronDown, Map, Calendar, Target, PenTool, BookOpen, BellRing, Library, WalletCards } from 'lucide-react'; // 🚀 Added Library & WalletCards
 // 👇 Ably hooks
 import { useChannel, usePresence, ChannelProvider } from "ably/react"; 
 // 👇 Server Action
@@ -154,12 +154,12 @@ export default function Navbar() {
               onMouseLeave={() => setExploreOpen(false)}
             >
               <button className={`flex items-center gap-1.5 px-3 lg:px-4 py-2 text-[0.85rem] lg:text-[0.9rem] font-medium rounded-full transition-all duration-300 whitespace-nowrap font-sans
-                ${pathname.includes('/search') || pathname.includes('/blogs') || pathname.includes('/roadmaps') || pathname.includes('/planner') || pathname.includes('/updates') ? 'bg-white/10 text-white font-semibold' : 'text-[#e0e0e0] hover:bg-white/5'}
+                ${pathname.includes('/search') || pathname.includes('/blogs') || pathname.includes('/roadmaps') || pathname.includes('/planner') || pathname.includes('/updates') || pathname.includes('/library') || pathname.includes('/wallet') ? 'bg-white/10 text-white font-semibold' : 'text-[#e0e0e0] hover:bg-white/5'}
               `}>
                 Explore <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${exploreOpen ? 'rotate-180' : ''}`} />
               </button>
 
-              <div className={`absolute top-full left-0 mt-2 w-52 bg-[#0a0118]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl transition-all duration-200 origin-top-left overflow-hidden
+              <div className={`absolute top-full left-0 mt-2 w-56 bg-[#0a0118]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl transition-all duration-200 origin-top-left overflow-hidden
                 ${exploreOpen ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible'}
               `}>
                 <div className="p-2 space-y-1">
@@ -170,7 +170,6 @@ export default function Navbar() {
                     <PenTool className="w-4 h-4 text-pink-400" /> Articles
                   </Link>
                   
-                  {/* 🚀 ADDED: Exam Board (Desktop) */}
                   <Link href="/updates" className="flex items-center gap-3 p-2.5 hover:bg-cyan-500/10 rounded-xl transition-colors text-sm text-gray-300 hover:text-cyan-300 group">
                     <BellRing className="w-4 h-4 text-cyan-400 group-hover:animate-pulse" /> Exam Board
                   </Link>
@@ -181,11 +180,22 @@ export default function Navbar() {
                     <Map className="w-4 h-4 text-cyan-400" /> Roadmaps
                   </Link>
                   
-                  {/* 🚀 My Planner inside Desktop Dropdown */}
+                  {/* 🚀 MARKETPLACE & PLANNER LINKS (Auth Only) */}
                   {status === "authenticated" && session && (
-                    <Link href="/planner" className="flex items-center gap-3 p-2.5 hover:bg-cyan-500/10 rounded-xl transition-colors text-sm text-gray-300 hover:text-cyan-300 group">
-                      <Target className="w-4 h-4 text-cyan-400 group-hover:animate-pulse" /> My Planner
-                    </Link>
+                    <>
+                      <Link href="/planner" className="flex items-center gap-3 p-2.5 hover:bg-cyan-500/10 rounded-xl transition-colors text-sm text-gray-300 hover:text-cyan-300 group">
+                        <Target className="w-4 h-4 text-cyan-400 group-hover:animate-pulse" /> My Planner
+                      </Link>
+                      
+                      <div className="h-[1px] bg-white/10 my-1 mx-2" />
+                      
+                      <Link href="/library" className="flex items-center gap-3 p-2.5 hover:bg-indigo-500/10 rounded-xl transition-colors text-sm text-gray-300 hover:text-indigo-400">
+                        <Library className="w-4 h-4 text-indigo-400" /> My Library
+                      </Link>
+                      <Link href="/wallet" className="flex items-center gap-3 p-2.5 hover:bg-emerald-500/10 rounded-xl transition-colors text-sm text-gray-300 hover:text-emerald-400">
+                        <WalletCards className="w-4 h-4 text-emerald-400" /> Creator Wallet
+                      </Link>
+                    </>
                   )}
                 </div>
               </div>
@@ -309,7 +319,6 @@ export default function Navbar() {
               <PenTool className="w-4 h-4 text-pink-400" /> Articles
             </Link>
             
-            {/* 🚀 ADDED: Exam Board (Mobile) */}
             <Link href="/updates" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 p-2 hover:bg-white/10 rounded-xl transition-colors text-sm text-cyan-400">
               <BellRing className="w-4 h-4" /> Exam Board
             </Link>
@@ -318,11 +327,20 @@ export default function Navbar() {
               <Map className="w-4 h-4 text-cyan-400" /> Community Roadmaps
             </Link>
             
-            {/* 🚀 My Planner inside Mobile Explore Box */}
+            {/* 🚀 MARKETPLACE & PLANNER (Mobile) */}
             {status === "authenticated" && session && (
-              <Link href="/planner" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 p-2 hover:bg-white/10 rounded-xl transition-colors text-sm text-cyan-400">
-                <Target className="w-4 h-4" /> My Planner
-              </Link>
+              <>
+                <Link href="/planner" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 p-2 hover:bg-white/10 rounded-xl transition-colors text-sm text-cyan-400">
+                  <Target className="w-4 h-4" /> My Planner
+                </Link>
+                <div className="h-[1px] bg-white/10 my-2 mx-2" />
+                <Link href="/library" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 p-2 hover:bg-white/10 rounded-xl transition-colors text-sm text-indigo-400">
+                  <Library className="w-4 h-4" /> My Library
+                </Link>
+                <Link href="/wallet" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 p-2 hover:bg-white/10 rounded-xl transition-colors text-sm text-emerald-400">
+                  <WalletCards className="w-4 h-4" /> Creator Wallet
+                </Link>
+              </>
             )}
           </div>
 

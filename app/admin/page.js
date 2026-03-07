@@ -4,7 +4,8 @@ import {
   getAdminDashboardData, 
   getAllNotes, 
   getAllBlogs, 
-  getAllOpportunities // 🚀 ADDED: Import new server action
+  getAllOpportunities,
+  getPendingPayouts // 🚀 IMPORTED NEW FUNCTION
 } from "@/actions/admin.actions"; 
 import AdminTabs from "@/components/admin/AdminTabs";
 import StatsCard from "@/components/admin/StatsCards"; 
@@ -16,14 +17,15 @@ export const metadata = {
 };
 
 export default async function AdminDashboardPage() {
-  // 🚀 Fetch all data in parallel
-  const [stats, usersRes, notesRes, blogsRes, analyticsData, opportunitiesRes] = await Promise.all([
+  // 🚀 Fetch all data in parallel, including pending payouts
+  const [stats, usersRes, notesRes, blogsRes, analyticsData, opportunitiesRes, pendingPayouts] = await Promise.all([
     getAdminStats(),
     getAllUsers(1, 20), 
     getAllNotes(1, 20), 
     getAllBlogs(1, 20),
     getAdminDashboardData(),
-    getAllOpportunities(1, 50) // 🚀 Fetch Sarkari/Jobs data
+    getAllOpportunities(1, 50),
+    getPendingPayouts() // 🚀 FETCH DATA
   ]);
 
   // --- SERIALIZATION LAYER ---
@@ -60,7 +62,7 @@ export default async function AdminDashboardPage() {
     createdAt: blog.createdAt instanceof Date ? blog.createdAt.toISOString() : new Date(blog.createdAt).toISOString(),
   }));
 
-  // 🚀 Handle Paginated Opportunity (Sarkari) Data
+  // Handle Paginated Opportunity (Sarkari) Data
   const serializedOpportunities = (opportunitiesRes.opportunities || []).map(opp => ({
     ...opp,
     _id: opp._id.toString(),
@@ -121,6 +123,7 @@ export default async function AdminDashboardPage() {
             blogs={serializedBlogs} 
             analyticsData={analyticsData} 
             opportunities={serializedOpportunities} 
+            pendingPayouts={pendingPayouts} // 🚀 PASS PAYOUTS TO TABS
           />
       </div>
     </div>

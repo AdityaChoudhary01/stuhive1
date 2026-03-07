@@ -53,11 +53,15 @@ export default function UploadForm() {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    category: "University", // 🚀 Default Category Added
+    category: "University", 
     university: "",
     course: "",
     subject: "",
     year: "",
+    // 🚀 NEW: Monetization Fields
+    isPaid: false,
+    price: 0,
+    previewPages: 3,
   });
 
   // Get current labels based on selected category
@@ -92,9 +96,13 @@ export default function UploadForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // ✅ FIX 1: Instantly block fast double-clicks before React even re-renders
     if (loading) return; 
     if (!file) return toast({ title: "File Required", description: "Please select a document to upload.", variant: "destructive" });
+
+    // Enforce pricing logic validation
+    if (formData.isPaid && (formData.price < 10 || formData.price > 1000)) {
+      return toast({ title: "Invalid Price", description: "Price must be between ₹10 and ₹1000.", variant: "destructive" });
+    }
 
     setLoading(true);
     try {
@@ -136,8 +144,7 @@ export default function UploadForm() {
 
       if (res.success) {
         setUploadStatus("Redirecting...");
-        toast({ title: "Success!" });
-        // 🚀 FIXED: Redirect using the new SEO Slug instead of the DB ID!
+        toast({ title: "Success!", description: formData.isPaid ? "Your premium note is live!" : "Note published successfully!" });
         router.push(`/notes/${res.noteSlug || res.noteId}`);
       } else {
         throw new Error(res.error);
@@ -160,7 +167,7 @@ export default function UploadForm() {
 
       <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
         
-        {/* --- 🚀 NEW: Section 1: Category Selection --- */}
+        {/* --- Section 1: Category Selection --- */}
         <div className="space-y-4">
           <h2 className="text-xs md:text-sm font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-500">
             1. Material Type
@@ -215,7 +222,7 @@ export default function UploadForm() {
           </div>
         </div>
 
-        {/* --- 🚀 DYNAMIC Section 3: Academic Info --- */}
+        {/* --- Section 3: Academic Info --- */}
         <div className="space-y-4">
           <h2 className="text-xs md:text-sm font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
             3. Academic Context
@@ -249,13 +256,68 @@ export default function UploadForm() {
           </div>
         </div>
 
-        {/* --- Section 4: File Upload --- */}
+        {/* --- 🚀 NEW: Section 4: Monetization --- */}
         <div className="space-y-4">
-          <h2 className="text-xs md:text-sm font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">
-            4. Document
+          <h2 className="text-xs md:text-sm font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-green-500">
+            4. Monetization (Earn 80% Revenue)
           </h2>
           
-          <div className="group relative border-2 border-dashed border-border rounded-2xl md:rounded-3xl p-6 md:p-12 transition-all hover:border-emerald-500/50 hover:bg-emerald-500/5 cursor-pointer overflow-hidden bg-secondary/20">
+          <div className="p-5 border border-emerald-500/20 bg-emerald-500/5 rounded-2xl space-y-5">
+            <div className="flex items-center gap-3 md:gap-4">
+              <Button
+                type="button"
+                variant={!formData.isPaid ? "default" : "outline"}
+                onClick={() => setFormData({...formData, isPaid: false, price: 0})}
+                className={`flex-1 ${!formData.isPaid ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25" : "border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"}`}
+              >
+                Free for Community
+              </Button>
+              <Button
+                type="button"
+                variant={formData.isPaid ? "default" : "outline"}
+                onClick={() => setFormData({...formData, isPaid: true, price: 49})}
+                className={`flex-1 ${formData.isPaid ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25" : "border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"}`}
+              >
+                Sell Note
+              </Button>
+            </div>
+
+            {formData.isPaid && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold text-foreground/90">Price (INR)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">₹</span>
+                    <Input 
+                      type="number" min="10" max="1000" required={formData.isPaid}
+                      value={formData.price}
+                      onChange={e => setFormData({...formData, price: Number(e.target.value)})}
+                      className="pl-7 h-11 md:h-12 bg-black/50 border-emerald-500/30 focus-visible:ring-emerald-500 rounded-xl"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold text-foreground/90">Free Preview Pages</Label>
+                  <Input 
+                    type="number" min="1" max="10" required={formData.isPaid}
+                    value={formData.previewPages}
+                    onChange={e => setFormData({...formData, previewPages: Number(e.target.value)})}
+                    className="h-11 md:h-12 bg-black/50 border-emerald-500/30 focus-visible:ring-emerald-500 rounded-xl"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">Pages visible before purchase block.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* --- Section 5: File Upload --- */}
+        <div className="space-y-4">
+          <h2 className="text-xs md:text-sm font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">
+            5. Document
+          </h2>
+          
+          <div className="group relative border-2 border-dashed border-border rounded-2xl md:rounded-3xl p-6 md:p-12 transition-all hover:border-indigo-500/50 hover:bg-indigo-500/5 cursor-pointer overflow-hidden bg-secondary/20">
             <input 
               type="file" 
               required
@@ -265,20 +327,20 @@ export default function UploadForm() {
             <div className="flex flex-col items-center justify-center text-center">
               {file ? (
                 <div className="flex flex-col items-center gap-3 animate-in fade-in zoom-in duration-300">
-                  <div className="p-3 md:p-4 bg-emerald-500/20 rounded-full">
-                    <FileText className="w-8 h-8 md:w-10 md:h-10 text-emerald-400" />
+                  <div className="p-3 md:p-4 bg-indigo-500/20 rounded-full">
+                    <FileText className="w-8 h-8 md:w-10 md:h-10 text-indigo-400" />
                   </div>
                   <div className="space-y-1">
                       <p className="font-bold text-sm md:text-base text-foreground truncate max-w-[200px] md:max-w-[350px]">{file.name}</p>
-                      <p className="text-[10px] md:text-xs font-medium text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full inline-block">
+                      <p className="text-[10px] md:text-xs font-medium text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full inline-block">
                         {(file.size / (1024 * 1024)).toFixed(2)} MB Ready
                       </p>
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center transform transition-transform group-hover:-translate-y-1">
-                  <div className="p-3 md:p-4 bg-secondary/50 rounded-full mb-3 md:mb-4 group-hover:bg-emerald-500/10 transition-colors">
-                    <UploadCloud className="w-8 h-8 md:w-10 md:h-10 text-muted-foreground group-hover:text-emerald-400 transition-colors" />
+                  <div className="p-3 md:p-4 bg-secondary/50 rounded-full mb-3 md:mb-4 group-hover:bg-indigo-500/10 transition-colors">
+                    <UploadCloud className="w-8 h-8 md:w-10 md:h-10 text-muted-foreground group-hover:text-indigo-400 transition-colors" />
                   </div>
                   <p className="font-bold text-base md:text-lg text-foreground/90">Tap to browse</p>
                   <p className="text-[11px] md:text-xs text-muted-foreground mt-1.5 md:mt-2 max-w-[200px] md:max-w-[250px] leading-relaxed">
@@ -304,7 +366,7 @@ export default function UploadForm() {
           ) : (
             <div className="flex items-center gap-2 tracking-wide">
               <UploadCloud className="w-4 h-4 md:w-5 md:h-5" />
-              <span>Publish Material</span>
+              <span>{formData.isPaid ? "Publish Premium Note" : "Publish Free Note"}</span>
             </div>
           )}
         </Button>

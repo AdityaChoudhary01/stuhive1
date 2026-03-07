@@ -7,13 +7,13 @@ export const generatePdfThumbnail = async (file) => {
   }
 
   try {
-    // 2. DYNAMIC IMPORT: Specifically use the legacy build for better browser compatibility
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    // 2. DYNAMIC IMPORT: Use the standard package instead of the broken .mjs legacy build
+    const pdfjs = await import("pdfjs-dist");
     
     // 3. VERSION MATCHING: 
-    // It is safer to use the version property from the library itself to fetch the worker
-    const PDFJS_VERSION = pdfjs.version || '4.0.379'; 
-    pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.mjs`;
+    // Point to the stable .js worker that matches the installed version
+    const PDFJS_VERSION = pdfjs.version || '3.11.174'; 
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
 
     const arrayBuffer = await file.arrayBuffer();
     

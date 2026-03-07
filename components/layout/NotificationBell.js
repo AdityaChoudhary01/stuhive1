@@ -4,14 +4,16 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, CheckCheck, Loader2, Sparkles, FileCheck2, Info, Trash2, ArrowRight } from "lucide-react";
+import { Bell, CheckCheck, Loader2, Sparkles, FileCheck2, Info, Trash2, ArrowRight, ShoppingCart } from "lucide-react";
 import { getUserNotifications, markNotificationAsRead, markAllNotificationsAsRead, clearAllNotifications } from "@/actions/notification.actions";
 import { formatDistanceToNow } from "date-fns";
 
+// 🚀 UPDATED: Added PURCHASE icon logic
 const getIcon = (type) => {
   switch (type) {
     case 'REQUEST_FULFILLED': return <FileCheck2 className="w-4 h-4 text-emerald-400" />;
     case 'FEATURED': return <Sparkles className="w-4 h-4 text-amber-400" />;
+    case 'PURCHASE': return <ShoppingCart className="w-4 h-4 text-emerald-400" />;
     default: return <Info className="w-4 h-4 text-cyan-400" />;
   }
 };
@@ -41,7 +43,6 @@ export default function NotificationBell() {
       return;
     }
     try {
-      // 🚀 FIXED: Only fetch top 10 for the quick preview dropdown to prevent lag
       const res = await getUserNotifications(session.user.id, 10);
       if (res.success) {
         setNotifications(res.notifications);
@@ -97,7 +98,7 @@ export default function NotificationBell() {
       >
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span className="absolute 0 top-1 right-1 flex items-center justify-center min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[9px] font-black rounded-full border-2 border-[#0a0118] animate-in zoom-in">
+          <span className="absolute top-1 right-1 flex items-center justify-center min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[9px] font-black rounded-full border-2 border-[#0a0118] animate-in zoom-in">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -109,12 +110,12 @@ export default function NotificationBell() {
             <h3 className="font-black tracking-tight text-white">Notifications</h3>
             <div className="flex items-center gap-3">
               {unreadCount > 0 && (
-                <button onClick={handleMarkAllRead} className="text-[10px] uppercase tracking-widest font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors" title="Mark all as read">
+                <button onClick={handleMarkAllRead} className="text-[10px] uppercase tracking-widest font-bold text-cyan-400 hover:text-cyan-300 transition-colors" title="Mark all as read">
                   <CheckCheck size={12} />
                 </button>
               )}
               {notifications.length > 0 && (
-                <button onClick={handleClearAll} className="text-[10px] uppercase tracking-widest font-bold text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors" title="Clear all notifications">
+                <button onClick={handleClearAll} className="text-[10px] uppercase tracking-widest font-bold text-red-400 hover:text-red-300 transition-colors" title="Clear all notifications">
                   <Trash2 size={12} />
                 </button>
               )}
@@ -155,7 +156,6 @@ export default function NotificationBell() {
             )}
           </div>
 
-          {/* 🚀 FIXED: Added View All Footer */}
           <div className="p-3 border-t border-white/5 bg-black/20 text-center">
             <Link 
               href="/notifications" 

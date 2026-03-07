@@ -1,8 +1,9 @@
 import { getNoteBySlug, getRelatedNotes } from "@/actions/note.actions"; 
 import { getServerSession } from "next-auth"; 
 import { authOptions } from "@/lib/auth";
-import { notFound, redirect } from "next/navigation"; // 🚀 Added redirect
+import { notFound, redirect } from "next/navigation"; 
 import Link from "next/link";
+import User from "@/lib/models/User"; // 🚀 Added to check purchases
 
 // Components
 import ClientPDFLoader from "@/components/notes/ClientPDFLoader";
@@ -14,12 +15,13 @@ import AddToCollectionModal from "@/components/notes/AddToCollectionModal";
 import DownloadButton from "./DownloadButton"; 
 import SaveNoteHeart from "./SaveNoteHeart"; 
 import ViewCounter from "./ViewCounter";
+import BuyNoteButton from "./BuyNoteButton"; // 🚀 NEW COMPONENT
 
 // UI Components
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Download, Calendar, Eye, ShieldCheck, Info, HeartHandshake, BookOpen, GraduationCap, FileText, ChevronDown } from "lucide-react"; 
+import { Download, Calendar, Eye, ShieldCheck, Info, HeartHandshake, BookOpen, GraduationCap, FileText, ChevronDown, Lock } from "lucide-react"; 
 
 // Utils
 import { formatDate } from "@/lib/utils";
@@ -31,7 +33,7 @@ export const revalidate = 86400;
 const APP_URL = process.env.NEXTAUTH_URL || "https://www.stuhive.in";
 const R2_PUBLIC_URL = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "";
 
-// 🚀 1. ULTRA HYPER SEO METADATA ENGINE
+// 🚀 ULTRA HYPER SEO METADATA ENGINE
 export async function generateMetadata({ params }) {
   const resolvedParams = await params;
   const note = await getNoteBySlug(resolvedParams.slug); 
@@ -111,13 +113,25 @@ export default async function ViewNotePage({ params }) {
   if (!note) notFound();
 
   // 🚀 301 REDIRECT FOR ALREADY INDEXED PAGES
-  // If the user visits using the old MongoDB ID, redirect them to the new SEO Slug URL
   if (slug === note._id.toString() && note.slug) {
     redirect(`/notes/${note.slug}`);
   }
 
+  // 🚀 MARKETPLACE ACCESS LOGIC
+  let hasPurchased = false;
+  
+  if (session?.user) {
+    const currentUser = await User.findById(session.user.id).select('purchasedNotes').lean();
+    if (currentUser?.purchasedNotes?.map(id => id.toString()).includes(note._id.toString())) {
+        hasPurchased = true;
+    }
+  }
+
   const isOwner = session?.user?.id === (note.user?._id?.toString() || note.user?.toString());
   const canEdit = isOwner || session?.user?.role === 'admin';
+  
+  // Grant access if: free, purchased, uploader, or admin
+  const hasAccess = !note.isPaid || note.price === 0 || hasPurchased || isOwner || canEdit;
 
   const [relatedNotes, signedUrl] = await Promise.all([
     getRelatedNotes(note._id),
@@ -152,12 +166,12 @@ export default async function ViewNotePage({ params }) {
     "name": note.title,
     "description": note.description || `Study notes for ${note.subject} at ${note.university}`,
     "learningResourceType": ["Study Guide", "Lecture Notes", "Handwritten Notes"],
-    "educationalLevel": "University",
+    "educationalLevel": note.category || "University",
     "teaches": [note.subject, note.course],
     "educationalUse": "Review",
     "courseCode": note.course,
     "image": ogImage,
-    "isAccessibleForFree": true, 
+    "isAccessibleForFree": !note.isPaid, 
     "inLanguage": "en",
     "datePublished": note.uploadDate,
     "dateModified": note.updatedAt || note.uploadDate,
@@ -201,6 +215,9 @@ export default async function ViewNotePage({ params }) {
 
   return (
     <main className="w-full px-3 md:px-8 mx-auto py-8 md:py-12 pt-24 md:pt-32 max-w-7xl relative" itemScope itemType="https://schema.org/CreativeWork">
+      {/* 🚀 INJECT RAZORPAY SCRIPT */}
+      <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
+      
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(resourceSchema) }} />
       
@@ -260,6 +277,13 @@ export default async function ViewNotePage({ params }) {
                 </div>
             </div>
             
+            {/* 🚀 PRICE BADGE */}
+            {note.isPaid && note.price > 0 && (
+                <div className="inline-block px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 font-black text-lg tracking-wider">
+                   ₹{note.price} <span className="text-[10px] font-medium text-muted-foreground ml-2 uppercase tracking-widest">Lifetime Access</span>
+                </div>
+            )}
+
             <div className="flex flex-wrap items-center gap-4 md:gap-8 text-[11px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground bg-secondary/20 p-3 md:p-4 rounded-2xl border border-border w-fit">
                 <span className="flex items-center gap-1.5 md:gap-2" title="Upload Date">
                   <Calendar className="w-3.5 h-3.5 md:w-4 md:h-4 text-cyan-400" aria-hidden="true" /> 
@@ -271,7 +295,7 @@ export default async function ViewNotePage({ params }) {
                 </span>
                 <span className="flex items-center gap-1.5 md:gap-2" title="Total Downloads">
                   <Download className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-400" aria-hidden="true" /> 
-                  <span className="text-foreground">{note.downloadCount || 0}</span> Free Downloads
+                  <span className="text-foreground">{note.downloadCount || 0}</span> Downloads
                 </span>
             </div>
           </header>
@@ -279,8 +303,26 @@ export default async function ViewNotePage({ params }) {
           <section className="rounded-[1.5rem] md:rounded-[2rem] border border-white/10 bg-background/50 backdrop-blur-xl overflow-hidden shadow-2xl relative group" aria-label="PDF Document Viewer">
              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 opacity-80" />
              
-             <div className="min-h-[400px] md:min-h-[700px] bg-black/40">
-               <ClientPDFLoader url={signedUrl} fileType={note.fileType} title={note.title} />
+             <div className="min-h-[400px] md:min-h-[700px] bg-black/40 relative">
+               {/* 🚀 Pass maxPages to limit preview if unpaid */}
+               <ClientPDFLoader 
+                 url={signedUrl} 
+                 fileType={note.fileType} 
+                 title={note.title} 
+                 maxPages={hasAccess ? null : note.previewPages || 3} 
+               />
+
+               {/* 🚀 PAYWALL OVERLAY */}
+               {!hasAccess && (
+                 <div className="absolute bottom-0 left-0 w-full h-56 bg-gradient-to-t from-black via-black/90 to-transparent flex flex-col items-center justify-end pb-8 z-50 px-4 text-center">
+                    <Lock className="w-8 h-8 md:w-10 md:h-10 text-amber-400 mb-3" />
+                    <h3 className="text-white font-black text-lg md:text-xl mb-2">Preview Reached</h3>
+                    <p className="text-muted-foreground text-xs md:text-sm max-w-md mb-6">
+                      Unlock the full document instantly to continue studying {note.subject}.
+                    </p>
+                    <BuyNoteButton noteId={serializedNote._id} price={note.price} userEmail={session?.user?.email} />
+                 </div>
+               )}
              </div>
              
              <div className="p-4 md:p-6 bg-secondary/30 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4 md:gap-5">
@@ -291,7 +333,12 @@ export default async function ViewNotePage({ params }) {
                 
                 <div className="flex flex-wrap items-center justify-center gap-3 w-full sm:w-auto">
                     <AddToCollectionModal noteId={serializedNote._id} />
-                    <DownloadButton signedUrl={signedUrl} fileName={note.fileName} noteId={serializedNote._id} />
+                    {/* 🚀 Protect Download Button */}
+                    {hasAccess ? (
+                      <DownloadButton signedUrl={signedUrl} fileName={note.fileName} noteId={serializedNote._id} />
+                    ) : (
+                      <BuyNoteButton noteId={serializedNote._id} price={note.price} userEmail={session?.user?.email} />
+                    )}
                 </div>
              </div>
           </section>

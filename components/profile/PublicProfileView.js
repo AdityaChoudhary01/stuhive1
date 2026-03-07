@@ -4,7 +4,18 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image"; 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { FaMapMarkerAlt, FaCalendarAlt, FaBook, FaRss, FaStar, FaUserPlus, FaUserCheck, FaUniversity, FaEnvelope } from 'react-icons/fa';
+import { 
+  FaMapMarkerAlt, 
+  FaCalendarAlt, 
+  FaBook, 
+  FaRss, 
+  FaStar, 
+  FaUserPlus, 
+  FaUserCheck, 
+  FaUniversity, 
+  FaEnvelope, 
+  FaFire // 🚀 FIXED: Changed FaFlame to FaFire
+} from 'react-icons/fa';
 import { ChevronDown } from "lucide-react"; 
 import { Button } from "@/components/ui/button";
 import NoteCard from "@/components/notes/NoteCard";
@@ -13,6 +24,7 @@ import RoleBadge from "@/components/common/RoleBadge";
 import { toggleFollow } from "@/actions/user.actions";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { checkConsistentBadge } from "@/lib/utils"; 
 
 import {
   Dialog,
@@ -56,7 +68,6 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
   const pathname = usePathname();
   const { toast } = useToast();
   
-  // 🚀 SEO Routable Pagination State
   const ITEMS_PER_PAGE = 6;
   const initialTab = searchParams.get('tab') === 'blogs' ? 'blogs' : 'notes';
   
@@ -68,14 +79,14 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
   const [followLoading, setFollowLoading] = useState(false);
   const [followerCount, setFollowerCount] = useState(profile.followers.length);
 
-  // Derived Grid Data
+  const isConsistent = checkConsistentBadge(profile);
+
   const currentNotes = notes.slice(0, notesPage * ITEMS_PER_PAGE);
   const hasMoreNotes = notes.length > currentNotes.length;
 
   const currentBlogs = blogs.slice(0, blogsPage * ITEMS_PER_PAGE);
   const hasMoreBlogs = blogs.length > currentBlogs.length;
 
-  // Handles silent URL updates for SEO
   const loadMoreNotes = () => {
       const next = notesPage + 1;
       setNotesPage(next);
@@ -121,7 +132,6 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
 
   return (
     <div className="animate-in fade-in duration-700 px-2 sm:px-0" itemProp="mainEntity" itemScope itemType="https://schema.org/Person">
-        {/* --- Header Card --- */}
         <div className="bg-secondary/10 border border-white/5 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 mb-8 sm:mb-12 relative overflow-hidden shadow-2xl backdrop-blur-md">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600"></div>
             
@@ -181,6 +191,12 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
                                 <FaStar className="animate-pulse" /> StuHive Star
                              </Badge>
                         )}
+                        {/* 🚀 FIXED: Changed FaFlame to FaFire */}
+                        {isConsistent && (
+                          <Badge variant="outline" className="gap-2 border-orange-500/40 text-orange-400 bg-orange-500/10 px-4 py-1 font-black uppercase tracking-tighter shadow-[0_0_15px_rgba(249,115,22,0.2)] animate-pulse">
+                             <FaFire className="text-orange-500" /> Consistent Learner
+                          </Badge>
+                        )}
                     </div>
 
                     {profile.bio && (
@@ -203,19 +219,7 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
                         <span className="flex items-center gap-2"><FaCalendarAlt /> Joined {new Date(profile.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long' })}</span>
                     </div>
                     
-                    {/* 🚀 STATS SECTION INCLUDING HIVE POINTS */}
                     <div className="flex flex-wrap justify-center md:justify-start gap-8 sm:gap-12 pt-6 border-t border-white/5">
-                        
-                        {/* 🚀 NEW: Hive Points Stat Block */}
-                        <Link href="/hive-points" className="text-center cursor-pointer group appearance-none bg-transparent border-none p-0 m-0">
-                            <span className="block text-2xl sm:text-3xl font-black text-amber-400 group-hover:text-amber-300 transition-colors drop-shadow-md">
-                                {profile.hivePoints || 0}
-                            </span>
-                            <span className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-amber-500/70 group-hover:text-amber-400 transition-colors flex items-center justify-center gap-1">
-                                <FaStar className="w-2.5 h-2.5" /> Points
-                            </span>
-                        </Link>
-
                         <div className="text-center">
                             <span className="block text-2xl sm:text-3xl font-black text-white">{notes.length}</span>
                             <span className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-gray-300">Notes</span>
@@ -254,12 +258,20 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
                                 <UserList users={profile.following} emptyMessage="Not following anyone yet." />
                             </DialogContent>
                         </Dialog>
+
+                        <Link href="/hive-points" className="text-center cursor-pointer group appearance-none bg-transparent border-none p-0 m-0">
+                            <span className="block text-2xl sm:text-3xl font-black text-amber-400 group-hover:text-amber-300 transition-colors drop-shadow-md">
+                                {profile.hivePoints || 0}
+                            </span>
+                            <span className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-amber-500/70 group-hover:text-amber-400 transition-colors flex items-center justify-center gap-1">
+                                <FaStar className="w-2.5 h-2.5" /> Points
+                            </span>
+                        </Link>
                     </div>
                 </div>
             </div>
         </div>
 
-        {/* --- Content Tabs --- */}
         <div className="flex gap-6 sm:gap-8 mb-8 sm:mb-10 border-b border-white/5 overflow-x-auto hide-scrollbar px-1">
             <button 
                 onClick={() => handleTabChange('notes')} 
@@ -277,7 +289,6 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
             </button>
         </div>
 
-        {/* --- Content Grid --- */}
         <section aria-labelledby="portfolio-heading" className="min-h-[400px] animate-in slide-in-from-bottom-4 duration-500 pb-12">
             <h2 id="portfolio-heading" className="sr-only">{activeTab === 'notes' ? 'Notes Portfolio' : 'Blog Portfolio'}</h2>
             
@@ -295,7 +306,6 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
                           ))}
                       </div>
                       
-                      {/* 🚀 SEO Routable Load More for Notes */}
                       {hasMoreNotes && (
                          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-12 relative">
                              <Button onClick={loadMoreNotes} size="lg" className="w-full sm:w-auto h-12 rounded-full px-8 bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] hover:border-cyan-500/50 text-white font-black uppercase tracking-widest text-[11px] transition-all hover:shadow-[0_0_20px_rgba(34,211,238,0.15)] group">
@@ -327,7 +337,6 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
                           ))}
                       </div>
                       
-                      {/* 🚀 SEO Routable Load More for Blogs */}
                       {hasMoreBlogs && (
                          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-12 relative">
                              <Button onClick={loadMoreBlogs} size="lg" className="w-full sm:w-auto h-12 rounded-full px-8 bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] hover:border-purple-500/50 text-white font-black uppercase tracking-widest text-[11px] transition-all hover:shadow-[0_0_20px_rgba(168,85,247,0.15)] group">

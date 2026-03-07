@@ -13,10 +13,12 @@ export async function generateMetadata() {
   const { totalCount } = await getPublicCollections({ limit: 1 });
   
   return {
-    title: `Public Study Bundles (${totalCount}+) | Community Handwritten Notes | StuHive`,
-    description: `Access the largest community archive of ${totalCount}+ curated university note bundles. Download handwritten PDF notes, previous year question papers, and comprehensive study guides across all academic faculties.`,
+    title: `Public Study Bundles (${totalCount}+) | University, School & Competitive Exams | StuHive`,
+    description: `Access the largest community archive of ${totalCount}+ curated study bundles. Download handwritten PDF notes, PYQs, and guides for University (B.Tech, BSc), School (CBSE, ICSE), and Competitive Exams (UPSC, SSC, JEE).`,
     keywords: [
       "university note bundles", 
+      "school study materials",
+      "UPSC SSC competitive exam bundles",
       "PDF study materials", 
       "handwritten notes collection", 
       "shared academic archives", 
@@ -41,7 +43,7 @@ export async function generateMetadata() {
     },
     openGraph: {
       title: "StuHive Study Bundles | Community-Curated Note Archives",
-      description: `Unlock access to ${totalCount}+ verified student bundles. One link to your entire semester's resources.`,
+      description: `Unlock access to ${totalCount}+ verified student bundles. One link to your entire semester, school year, or competitive exam resources.`,
       url: `${APP_URL}/shared-collections`,
       siteName: "StuHive",
       images: [{ url: `${APP_URL}/og-shared-archives.png`, width: 1200, height: 630, alt: "StuHive Shared Study Bundles" }],
@@ -50,7 +52,7 @@ export async function generateMetadata() {
     twitter: {
       card: "summary_large_image",
       title: "StuHive Study Bundles | Community Archives",
-      description: `Access ${totalCount}+ verified student note bundles for free.`,
+      description: `Access ${totalCount}+ verified student note bundles for University, School, and Competitive Exams.`,
       images: [`${APP_URL}/og-shared-archives.png`],
     },
     applicationName: "StuHive"
@@ -79,7 +81,7 @@ export default async function BrowseCollectionsPage({ searchParams }) {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
       "name": `StuHive Community Study Bundles - Page ${currentPage}`,
-      "description": `A directory of ${totalCount} curated academic archives created by students. Showing page ${currentPage}.`,
+      "description": `A directory of ${totalCount} curated academic archives created by students for school, college, and competitive exams. Showing page ${currentPage}.`,
       "url": `${APP_URL}/shared-collections?page=${currentPage}`,
       "mainEntity": {
         "@type": "ItemList",
@@ -131,7 +133,7 @@ export default async function BrowseCollectionsPage({ searchParams }) {
           </h1>
           
           <p className="text-gray-400 text-lg md:text-xl font-medium leading-relaxed mb-10 max-w-2xl" itemProp="description">
-            Access the hive mind of high-quality handwritten notes, previous year question papers, and comprehensive resources organized by top students globally.
+            Access the hive mind of high-quality resources organized by top students. From university semesters to school boards and competitive exam prep—all in one link.
           </p>
 
           {/* Sleek Data Metrics */}
@@ -155,7 +157,7 @@ export default async function BrowseCollectionsPage({ searchParams }) {
         </header>
 
         <section aria-labelledby="collections-heading">
-          <h2 id="collections-heading" className="sr-only">Verified University Note Bundles Grid</h2>
+          <h2 id="collections-heading" className="sr-only">Verified Community Note Bundles Grid</h2>
           
           {/* 🚀 CLIENT COMPONENT: Handles the Tabs & Grid */}
           <CollectionGrid 
@@ -167,15 +169,16 @@ export default async function BrowseCollectionsPage({ searchParams }) {
         </section>
 
         {/* 🚀 DYNAMIC SEO CLUSTER (Hidden - For Search Engines Only) */}
-        {/* Gives extreme context density to the page without cluttering the UI */}
         <div className="sr-only">
-          <h2>Popular Study Folders, Course Bundles & Categories</h2>
+          <h2>Popular Study Folders, Course Bundles & Exam Categories</h2>
           <ul>
-            {collections.slice(0, 5).map(c => <li key={c._id}>{c.name} handwritten notes collection</li>)}
+            {collections.slice(0, 5).map(c => <li key={c._id}>{c.name} ({c.category || 'Academic'}) handwritten notes collection</li>)}
             <li>B.Tech Computer Science All Semesters Materials</li>
-            <li>Engineering Physics and Mathematics Question Bank</li>
+            <li>UPSC Civil Services General Studies Paper Bundles</li>
+            <li>Class 10th and 12th Board Exam Question Bank</li>
+            <li>JEE Mains and Advanced Physics Chemistry Math Notes</li>
+            <li>SSC CGL and Bank PO Preparation Folders</li>
             <li>University Semester PDF Note Bundles</li>
-            <li>Download free complete syllabus archives</li>
           </ul>
         </div>
 
@@ -187,7 +190,7 @@ export default async function BrowseCollectionsPage({ searchParams }) {
                 Shape the <span className="text-cyan-400 italic">Hive.</span>
             </h2>
             <p className="text-gray-400 text-base md:text-lg max-w-xl mb-10 leading-relaxed">
-              Don&apos;t just study. Build a legacy. Organize your semester notes into public bundles and help thousands ace their exams.
+              Don&apos;t just study. Build a legacy. Organize your semester, board, or competitive exam notes into public bundles and help thousands ace their exams.
             </p>
             
             <Link 

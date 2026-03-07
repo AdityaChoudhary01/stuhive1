@@ -525,3 +525,63 @@ export async function toggleOpportunityPublish(id, currentState) {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * 🚀 MARKETPLACE PAYOUTS: GET PENDING PAYOUTS
+ * Updated to show ALL users with a positive balance, not just >= 500.
+ */
+export async function getPendingPayouts() {
+  await connectDB();
+  if (!(await isAdmin())) return { error: "Unauthorized" };
+  
+  try {
+    // 🚀 FIXED: Fetch users with ANY positive wallet balance (> 0)
+    const users = await User.find({ walletBalance: { $gt: 0 } })
+      .select('name email avatar walletBalance payoutDetails')
+      .sort({ walletBalance: -1 })
+      .lean();
+      
+    return JSON.parse(JSON.stringify(users));
+  } catch (error) {
+    console.error("Fetch Payouts Error:", error);
+    return [];
+  }
+}
+
+/**
+ * 🚀 MARKETPLACE PAYOUTS: MARK AS PAID (RESET BALANCE)
+ */
+export async function processPayout(userId) {
+  await connectDB();
+  if (!(await isAdmin())) return { error: "Unauthorized" };
+  
+  try {
+    const targetUser = await User.findById(userId);
+    if (!targetUser) return { success: false, error: "User not found" };
+
+    // 🚀 NEW: Prevent processing if the balance is already 0
+    if (targetUser.walletBalance <= 0) {
+      return { success: false, error: "This user has no pending balance." };
+    }
+
+    // Capture the amount for the notification before resetting
+    const payoutAmount = targetUser.walletBalance.toFixed(2);
+
+    // Reset balance to 0 after admin has manually transferred the funds
+    targetUser.walletBalance = 0;
+    await targetUser.save();
+    
+    // Optional: Send a notification to the user that they got paid!
+    await createNotification({
+      recipientId: targetUser._id,
+      type: 'SYSTEM',
+      message: `Your payout of ₹${payoutAmount} has been processed! The funds should reflect in your bank/UPI shortly.`,
+      link: `/wallet`
+    });
+
+    revalidatePath("/admin");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}

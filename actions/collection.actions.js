@@ -122,25 +122,24 @@ export async function getPublicCollections({ page = 1, limit = 12 } = {}) {
 }
 
 /**
- * 5. CREATE COLLECTION & AWARD POINTS
+ * 5. CREATE COLLECTION & AWARD POINTS (UPDATED WITH CATEGORY)
  */
-export async function createCollection(name, userId) {
+export async function createCollection(name, userId, category = "University") {
   await connectDB();
   try {
     const newCollection = await Collection.create({
       name,
       user: userId,
       notes: [],
-      visibility: 'private', // Defaults to private, no indexing needed yet.
+      visibility: 'private', 
       description: "",
-      university: "" // 🚀 ADDED: Initialize empty university field
+      category: category, // 🚀 ADDED: Set category on creation
+      university: "" 
     });
 
-    // 🏆 GAMIFICATION: Reward the user 15 points for organizing study materials into a bundle!
+    // 🏆 GAMIFICATION: Reward points
     await awardHivePoints(userId, 15);
     
-    console.log(`🏆 GAMIFICATION: Awarded 15 Hive Points to User ID ${userId} for creating a bundle.`);
-
     revalidatePath('/profile');
     return { 
       success: true, 
@@ -153,7 +152,7 @@ export async function createCollection(name, userId) {
 }
 
 /**
- * 6. UPDATE COLLECTION (Handles Rename, Visibility, Description, and University)
+ * 6. UPDATE COLLECTION (Handles Category, Rename, Visibility, Description, and University)
  */
 export async function updateCollection(collectionId, data, userId) {
   await connectDB();
@@ -165,7 +164,8 @@ export async function updateCollection(collectionId, data, userId) {
     if (data.name !== undefined) collection.name = data.name;
     if (data.visibility !== undefined) collection.visibility = data.visibility;
     if (data.description !== undefined) collection.description = data.description;
-    if (data.university !== undefined) collection.university = data.university; // 🚀 ADDED: Update university
+    if (data.university !== undefined) collection.university = data.university;
+    if (data.category !== undefined) collection.category = data.category; // 🚀 ADDED: Update category
 
     await collection.save(); // Pre-save hooks handle slug generation
 
@@ -178,17 +178,16 @@ export async function updateCollection(collectionId, data, userId) {
             await pingIndexNow(url);
         } else if (collection.visibility === 'private' && data.visibility === 'private') {
             await removeContentFromIndex(collection.slug, "collection");
-            await pingIndexNow(url); // Pinging IndexNow with a 404/Private URL tells it to remove it
+            await pingIndexNow(url); 
         }
     }
 
-    // 🚀 CACHE BUSTING: Ensures main archive page updates instantly to prevent 404s
+    // 🚀 CACHE BUSTING
     revalidatePath('/profile');
     revalidatePath('/shared-collections'); 
     revalidatePath(`/collections/${collectionId}`);
     if (collection.slug) revalidatePath(`/shared-collections/${collection.slug}`);
     
-    // 🚀 CACHE BUSTING: Dynamically bust the new university hub if applicable
     if (collection.university) {
       const uniSlug = collection.university.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
       revalidatePath(`/univ/${uniSlug}`);
@@ -219,7 +218,6 @@ export async function deleteCollection(collectionId, userId) {
     const collection = await Collection.findOneAndDelete({ _id: collectionId, user: userId });
     if (!collection) return { success: false, error: "Not found or unauthorized" };
 
-    // 🚀 REMOVE FROM GOOGLE & INDEXNOW IF IT WAS PUBLIC
     if (collection.visibility === 'public' && collection.slug) {
         const url = `${APP_URL}/shared-collections/${collection.slug}`;
         await removeContentFromIndex(collection.slug, "collection");
@@ -229,7 +227,6 @@ export async function deleteCollection(collectionId, userId) {
     revalidatePath('/profile');
     revalidatePath('/shared-collections');
     
-    // 🚀 CACHE BUSTING: Update the university hub if the deleted collection belonged there
     if (collection.university) {
       const uniSlug = collection.university.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
       revalidatePath(`/univ/${uniSlug}`);
@@ -255,17 +252,15 @@ export async function addNoteToCollection(collectionId, noteId, userId) {
 
     if (!collection) return { success: false, error: "Not found or unauthorized" };
 
-    // 🚀 PING GOOGLE & INDEXNOW: Content updated, recrawl the new items!
     if (collection.visibility === 'public' && collection.slug) {
         const url = `${APP_URL}/shared-collections/${collection.slug}`;
         await indexNewContent(collection.slug, "collection");
         await pingIndexNow(url);
     }
 
-    // 🚀 CACHE BUSTING: Updates note count on the main page
     revalidatePath('/profile');
     revalidatePath('/shared-collections'); 
-    revalidatePath(`/collections/${collectionId}`); // Update private page
+    revalidatePath(`/collections/${collectionId}`); 
     if (collection.slug) revalidatePath(`/shared-collections/${collection.slug}`);
     
     return { success: true };
@@ -288,17 +283,15 @@ export async function removeNoteFromCollection(collectionId, noteId, userId) {
 
     if (!collection) return { success: false, error: "Not found or unauthorized" };
 
-    // 🚀 PING GOOGLE & INDEXNOW: Content updated (removed item)
     if (collection.visibility === 'public' && collection.slug) {
         const url = `${APP_URL}/shared-collections/${collection.slug}`;
         await indexNewContent(collection.slug, "collection");
         await pingIndexNow(url);
     }
 
-    // 🚀 CACHE BUSTING: Updates note count on the main page
     revalidatePath('/profile');
     revalidatePath('/shared-collections'); 
-    revalidatePath(`/collections/${collectionId}`); // Update private page
+    revalidatePath(`/collections/${collectionId}`); 
     if (collection.slug) revalidatePath(`/shared-collections/${collection.slug}`);
     
     return { success: true };

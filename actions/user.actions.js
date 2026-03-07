@@ -9,6 +9,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { deleteFileFromR2 } from "@/lib/r2";
 import { createNotification } from "@/actions/notification.actions";
+
 /**
  * GET USER PROFILE
  */
@@ -176,6 +177,7 @@ export async function updateProfile(userId, data) {
     return { success: false, error: error.message };
   }
 }
+
 /**
  * 🚀 GET FOLLOWING USERS
  * Returns the list of users the current user is following
@@ -336,5 +338,47 @@ export async function updateLastSeen(userId) {
   } catch (error) {
     console.error("Failed to update last seen:", error);
     return { success: false };
+  } 
+}
+
+/**
+ * 🚀 FETCH USER'S PURCHASED PREMIUM NOTES
+ */
+export async function getPurchasedNotes() {
+  await connectDB();
+  const session = await getServerSession(authOptions);
+  if (!session) return { success: false, error: "Unauthorized", notes: [] };
+
+  try {
+    // Find the user and populate the 'purchasedNotes' array with the full Note data
+    const user = await User.findById(session.user.id)
+      .populate({
+        path: 'purchasedNotes',
+        populate: { 
+            path: 'user', 
+            select: 'name avatar' // We need the author's details for the NoteCard
+        }
+      })
+      .lean();
+
+    if (!user || !user.purchasedNotes) {
+        return { success: true, notes: [] };
+    }
+
+    // Serialize the data so Next.js Client Components don't throw errors
+    const safeNotes = user.purchasedNotes.map(n => ({
+      ...n,
+      _id: n._id.toString(),
+      user: n.user ? { ...n.user, _id: n.user._id.toString() } : null,
+      uploadDate: n.uploadDate ? new Date(n.uploadDate).toISOString() : new Date().toISOString(),
+      createdAt: n.createdAt ? new Date(n.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: n.updatedAt ? new Date(n.updatedAt).toISOString() : new Date().toISOString(),
+      reviews: [] // Keep lightweight
+    }));
+
+    return { success: true, notes: safeNotes };
+  } catch (error) {
+    console.error("Error fetching purchased notes:", error);
+    return { success: false, error: error.message, notes: [] };
   }
 }
