@@ -50,8 +50,9 @@ export async function GET() {
     // 🚀 STATIC ROUTES
     const staticRoutes = [
       "", "/about", "/contact", "/blogs", "/search", "/shared-collections", "/requests",
-      "/login","/signup", "/roadmaps", "/updates", // 🚀 ADDED: /updates
-      "/donate", "/supporters", "/terms", "/privacy", "/dmca", "/hive-points"
+      "/login","/signup", "/roadmaps", "/updates", 
+      "/donate", "/supporters", "/terms", "/privacy", "/dmca", "/hive-points",
+      "/premium-purchase-policy" // 🚀 ADDED: Premium Purchase Policy Link
     ].map(route => ({
       url: `${BASE_URL}${route}`,
       lastModified: new Date().toISOString(),

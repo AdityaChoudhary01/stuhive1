@@ -146,6 +146,7 @@ export default function Footer() {
                 { name: "Contact Support", path: "/contact" },
                 { name: "Terms of Service", path: "/terms" },
                 { name: "Privacy Policy", path: "/privacy" },
+                { name: "Purchase Policy", path: "/premium-purchase-policy" }, // 🚀 ADDED Premium Purchase Link
                 { name: "DMCA Policy", path: "/dmca" }
               ].map(link => (
                 <li key={link.name}>
