@@ -7,7 +7,6 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// 🚀 Pointing to the stable v8 .js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 export default function PDFViewer({ url, fileType, title, maxPages = null }) {
@@ -22,7 +21,10 @@ export default function PDFViewer({ url, fileType, title, maxPages = null }) {
   const isImage = fileType?.startsWith('image/');
   const isPDF = fileType === 'application/pdf' || url?.toLowerCase().includes('.pdf');
 
-  // 1. Measure container width for PDF rendering
+  // Estimate height per page for Office Files (approx 900px per A4 page in Google Viewer)
+  const estimatedPageHeight = 950; 
+  const officeHeightLimit = maxPages ? maxPages * estimatedPageHeight : null;
+
   useEffect(() => {
     if (!isPDF) return;
     const updateWidth = () => {
@@ -51,7 +53,6 @@ export default function PDFViewer({ url, fileType, title, maxPages = null }) {
     </div>
   );
 
-  // Strategy A: Image Viewer
   if (isImage) {
     return (
         <div className="w-full h-[60vh] md:h-[750px] bg-[#0a0a0a] relative flex justify-center items-center overflow-hidden rounded-xl border border-white/10">
@@ -60,13 +61,14 @@ export default function PDFViewer({ url, fileType, title, maxPages = null }) {
     );
   }
 
-  // 🚀 Strategy B: Word / PPT / Excel / Text Viewer
-  // Now completely clean. If maxPages exists, the backend provides the restricted file.
+  // 🚀 Strategy B: Word / PPT / Excel (Glass Shield Logic)
   if (!isPDF && !isImage) {
     const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
     
     return (
-      <div className="w-full h-[70vh] md:h-[800px] bg-[#0a0a0a] relative rounded-xl border border-white/10 overflow-hidden flex flex-col">
+      <div 
+        className="relative w-full h-[70vh] md:h-[800px] bg-[#0a0a0a] rounded-xl border border-white/10 overflow-hidden flex flex-col"
+      >
         {iframeLoading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-background/80 backdrop-blur-md">
             <Loader2 className="h-10 w-10 animate-spin text-cyan-400 mb-4" />
@@ -74,24 +76,36 @@ export default function PDFViewer({ url, fileType, title, maxPages = null }) {
           </div>
         )}
         
-        <div className="flex-1 w-full overflow-auto">
-          <iframe
-            src={googleViewerUrl}
-            className="w-full h-full border-none bg-white"
-            title={title || "Document Viewer"}
-            onLoad={() => setIframeLoading(false)}
-            onError={() => { setIframeLoading(false); setError(true); }}
-          />
+        {/* 🚀 THE GLASS SHIELD CONTAINER */}
+        <div 
+          className="flex-1 w-full overflow-auto custom-scrollbar relative"
+        >
+          <div 
+            style={{ 
+              height: officeHeightLimit ? `${officeHeightLimit}px` : '100%',
+              overflow: 'hidden',
+              position: 'relative'
+            }}
+            className={maxPages ? "pointer-events-none select-none" : ""}
+          >
+            <iframe
+              src={googleViewerUrl}
+              className="w-full h-[3000px] border-none bg-white" // Large height to allow internal scrolling of first few pages
+              title={title || "Document Viewer"}
+              onLoad={() => setIframeLoading(false)}
+              onError={() => { setIframeLoading(false); setError(true); }}
+            />
+          </div>
 
-          {/* 💰 PREMIUM LOCK FOR OFFICE: If user hasn't paid, show lock at bottom of viewer */}
+          {/* 💰 LOCK OVERLAY: Blurs the bottom and disables further viewing */}
           {maxPages && (
-            <div className="bg-gradient-to-b from-transparent to-[#0a0a0a] p-8 flex flex-col items-center text-center">
-               <div className="p-4 bg-amber-500/10 rounded-full mb-4 border border-amber-500/20">
+            <div className="sticky bottom-0 left-0 w-full h-80 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/95 to-transparent flex flex-col items-center justify-end pb-12 z-20 px-4 backdrop-blur-[2px]">
+               <div className="p-4 bg-amber-500/20 rounded-full mb-4 border border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
                  <Lock className="w-8 h-8 text-amber-400" />
                </div>
                <h4 className="text-xl font-bold text-white mb-2">Preview Limit Reached</h4>
-               <p className="text-muted-foreground text-xs max-w-xs mb-4">
-                 Purchase the full document to unlock the remaining content of this {fileType?.split('/')[1]?.toUpperCase() || 'Office'} file.
+               <p className="text-gray-400 text-xs md:text-sm max-w-xs text-center mb-4">
+                 You are viewing the first {maxPages} pages. Purchase the full document to unlock scrolling and high-quality viewing.
                </p>
             </div>
           )}
@@ -100,7 +114,7 @@ export default function PDFViewer({ url, fileType, title, maxPages = null }) {
     );
   }
 
-  // Strategy C: PDF Viewer
+  // Strategy C: PDF Viewer (Remains the same as your request)
   const pagesToRender = maxPages ? Math.min(numPages || 1, maxPages) : numPages;
 
   return (
@@ -140,7 +154,6 @@ export default function PDFViewer({ url, fileType, title, maxPages = null }) {
                        renderAnnotationLayer={false}
                      />
                      
-                     {/* 💰 PREMIUM LOCK FOR PDF: Show after reaching the end of the preview file */}
                      {maxPages && index + 1 === maxPages && (
                         <div className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 border-t-2 border-amber-500 z-10">
                            <div className="p-4 bg-amber-500/20 rounded-full mb-4 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
