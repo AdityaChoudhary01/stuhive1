@@ -232,18 +232,19 @@ export async function getRelatedNotes(noteId) {
 }
 
 /**
- * CREATE NOTE & AWARD POINTS
+ * 🚀 CREATE NOTE & AWARD POINTS (UPDATED WITH CATEGORY)
  */
-export async function createNote({ title, description, university, course, subject, year, fileData, userId }) {
+export async function createNote({ title, description, category, university, course, subject, year, fileData, userId }) {
   await connectDB();
   try {
     const newNote = new Note({
       title,
       description,
+      category: category || 'University', // 🚀 Handle category dynamic selection
       university,
       course,
       subject,
-      year: Number(year),
+      year: String(year), // 🚀 Ensure year is string to handle "Class 12th" or "2025"
       fileName: fileData.fileName,
       fileKey: fileData.fileKey,          
       thumbnailKey: fileData.thumbnailKey, 
@@ -274,7 +275,7 @@ export async function createNote({ title, description, university, course, subje
 }
 
 /**
- * UPDATE NOTE
+ * 🚀 UPDATE NOTE (UPDATED WITH CATEGORY)
  */
 export async function updateNote(noteId, data, userId) {
   await connectDB();
@@ -291,6 +292,7 @@ export async function updateNote(noteId, data, userId) {
 
     note.title = data.title || note.title;
     note.description = data.description || note.description;
+    note.category = data.category || note.category; // 🚀 Handle category dynamic selection
     note.university = data.university || note.university;
     note.course = data.course || note.course;
     note.subject = data.subject || note.subject;

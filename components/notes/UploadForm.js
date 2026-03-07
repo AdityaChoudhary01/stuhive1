@@ -8,10 +8,38 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UploadCloud, FileText, BookOpen, School, GraduationCap, CalendarDays } from "lucide-react";
+import { Loader2, UploadCloud, FileText, BookOpen, School, GraduationCap, CalendarDays, Trophy, Lightbulb } from "lucide-react";
 import { getUploadUrl } from "@/actions/upload.actions"; 
 import { createNote } from "@/actions/note.actions";
 import { generatePdfThumbnail } from "@/utils/generateThumbnail"; 
+
+// 🚀 DYNAMIC LABEL CONFIGURATION
+const CATEGORY_CONFIG = {
+  "University": {
+    instLabel: "University / College", instIcon: <School className="w-4 h-4 text-blue-400" />, instPlace: "e.g. Mumbai University",
+    courseLabel: "Course / Degree", courseIcon: <GraduationCap className="w-4 h-4 text-purple-400" />, coursePlace: "e.g. B.Tech CSE",
+    subjectLabel: "Subject", subjectPlace: "e.g. Data Structures",
+    yearLabel: "Year / Semester", yearPlace: "e.g. 2nd Year"
+  },
+  "School": {
+    instLabel: "Board / School", instIcon: <School className="w-4 h-4 text-blue-400" />, instPlace: "e.g. CBSE / DPS",
+    courseLabel: "Class / Standard", courseIcon: <BookOpen className="w-4 h-4 text-purple-400" />, coursePlace: "e.g. Class 12th",
+    subjectLabel: "Subject", subjectPlace: "e.g. Physics",
+    yearLabel: "Academic Year", yearPlace: "e.g. 2024"
+  },
+  "Competitive Exams": {
+    instLabel: "Exam Body / Category", instIcon: <Trophy className="w-4 h-4 text-amber-400" />, instPlace: "e.g. UPSC / SSC / JEE",
+    courseLabel: "Specific Exam Name", courseIcon: <FileText className="w-4 h-4 text-purple-400" />, coursePlace: "e.g. Civil Services / CGL",
+    subjectLabel: "Paper / Subject", subjectPlace: "e.g. GS Paper 1 / Quant",
+    yearLabel: "Target Year", yearPlace: "e.g. 2025"
+  },
+  "Other": {
+    instLabel: "Organization / Context", instIcon: <Lightbulb className="w-4 h-4 text-blue-400" />, instPlace: "e.g. Google Cloud / General",
+    courseLabel: "Program / Certification", courseIcon: <GraduationCap className="w-4 h-4 text-purple-400" />, coursePlace: "e.g. AWS Architect",
+    subjectLabel: "Topic", subjectPlace: "e.g. Networking",
+    yearLabel: "Year", yearPlace: "e.g. 2024"
+  }
+};
 
 export default function UploadForm() {
   const { data: session } = useSession();
@@ -25,11 +53,15 @@ export default function UploadForm() {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
+    category: "University", // 🚀 Default Category Added
     university: "",
     course: "",
     subject: "",
     year: "",
   });
+
+  // Get current labels based on selected category
+  const labels = CATEGORY_CONFIG[formData.category];
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -128,10 +160,34 @@ export default function UploadForm() {
 
       <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
         
-        {/* --- Section 1: Note Details --- */}
+        {/* --- 🚀 NEW: Section 1: Category Selection --- */}
+        <div className="space-y-4">
+          <h2 className="text-xs md:text-sm font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-500">
+            1. Material Type
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {Object.keys(CATEGORY_CONFIG).map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setFormData({ ...formData, category: cat })}
+                className={`p-3 rounded-xl border transition-all text-xs font-bold flex flex-col items-center gap-2 ${
+                  formData.category === cat 
+                  ? "bg-amber-500/10 border-amber-500/50 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]" 
+                  : "bg-secondary/20 border-white/5 text-muted-foreground hover:bg-secondary/40 hover:text-white"
+                }`}
+              >
+                {CATEGORY_CONFIG[cat].instIcon}
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* --- Section 2: Note Details --- */}
         <div className="space-y-4">
           <h2 className="text-xs md:text-sm font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-500">
-            1. Note Details
+            2. Note Details
           </h2>
           
           <div className="space-y-4">
@@ -159,44 +215,44 @@ export default function UploadForm() {
           </div>
         </div>
 
-        {/* --- Section 2: Academic Info --- */}
+        {/* --- 🚀 DYNAMIC Section 3: Academic Info --- */}
         <div className="space-y-4">
           <h2 className="text-xs md:text-sm font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
-            2. Academic Context
+            3. Academic Context
           </h2>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
             <div className="space-y-1.5">
               <Label className="flex items-center gap-2 text-sm font-semibold text-foreground/90">
-                <School className="w-4 h-4 text-blue-400" /> University
+                {labels.instIcon} {labels.instLabel}
               </Label>
-              <Input required className="h-11 md:h-12 rounded-xl bg-secondary/30 border-secondary focus-visible:ring-blue-500/30 transition-all" value={formData.university} onChange={e => setFormData({...formData, university: e.target.value})} />
+              <Input required placeholder={labels.instPlace} className="h-11 md:h-12 rounded-xl bg-secondary/30 border-secondary focus-visible:ring-blue-500/30 transition-all" value={formData.university} onChange={e => setFormData({...formData, university: e.target.value})} />
             </div>
             <div className="space-y-1.5">
               <Label className="flex items-center gap-2 text-sm font-semibold text-foreground/90">
-                <GraduationCap className="w-4 h-4 text-purple-400" /> Course / Degree
+                {labels.courseIcon} {labels.courseLabel}
               </Label>
-              <Input required className="h-11 md:h-12 rounded-xl bg-secondary/30 border-secondary focus-visible:ring-purple-500/30 transition-all" value={formData.course} onChange={e => setFormData({...formData, course: e.target.value})} />
+              <Input required placeholder={labels.coursePlace} className="h-11 md:h-12 rounded-xl bg-secondary/30 border-secondary focus-visible:ring-purple-500/30 transition-all" value={formData.course} onChange={e => setFormData({...formData, course: e.target.value})} />
             </div>
             <div className="space-y-1.5">
               <Label className="flex items-center gap-2 text-sm font-semibold text-foreground/90">
-                <BookOpen className="w-4 h-4 text-pink-400" /> Subject
+                <BookOpen className="w-4 h-4 text-pink-400" /> {labels.subjectLabel}
               </Label>
-              <Input required className="h-11 md:h-12 rounded-xl bg-secondary/30 border-secondary focus-visible:ring-pink-500/30 transition-all" value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} />
+              <Input required placeholder={labels.subjectPlace} className="h-11 md:h-12 rounded-xl bg-secondary/30 border-secondary focus-visible:ring-pink-500/30 transition-all" value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} />
             </div>
             <div className="space-y-1.5">
               <Label className="flex items-center gap-2 text-sm font-semibold text-foreground/90">
-                <CalendarDays className="w-4 h-4 text-orange-400" /> Year of Study
+                <CalendarDays className="w-4 h-4 text-orange-400" /> {labels.yearLabel}
               </Label>
-              <Input required className="h-11 md:h-12 rounded-xl bg-secondary/30 border-secondary focus-visible:ring-orange-500/30 transition-all" value={formData.year} onChange={e => setFormData({...formData, year: e.target.value})} />
+              <Input required placeholder={labels.yearPlace} className="h-11 md:h-12 rounded-xl bg-secondary/30 border-secondary focus-visible:ring-orange-500/30 transition-all" value={formData.year} onChange={e => setFormData({...formData, year: e.target.value})} />
             </div>
           </div>
         </div>
 
-        {/* --- Section 3: File Upload --- */}
+        {/* --- Section 4: File Upload --- */}
         <div className="space-y-4">
           <h2 className="text-xs md:text-sm font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">
-            3. Document
+            4. Document
           </h2>
           
           <div className="group relative border-2 border-dashed border-border rounded-2xl md:rounded-3xl p-6 md:p-12 transition-all hover:border-emerald-500/50 hover:bg-emerald-500/5 cursor-pointer overflow-hidden bg-secondary/20">
@@ -248,7 +304,7 @@ export default function UploadForm() {
           ) : (
             <div className="flex items-center gap-2 tracking-wide">
               <UploadCloud className="w-4 h-4 md:w-5 md:h-5" />
-              <span>Publish Note</span>
+              <span>Publish Material</span>
             </div>
           )}
         </Button>

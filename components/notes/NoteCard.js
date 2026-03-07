@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Image as ImageIcon, FileType, Heart, Eye, Presentation, Table as TableIcon, Loader2, School } from "lucide-react";
+import { Download, FileText, Image as ImageIcon, FileType, Heart, Eye, Presentation, Table as TableIcon, Loader2, School, Trophy, Lightbulb, BookOpen } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import StarRating from "@/components/common/StarRating";
 import { useSession } from "next-auth/react";
@@ -24,6 +24,17 @@ const FileIcon = ({ type, className }) => {
   if (type?.includes("presentation") || type?.includes("powerpoint")) return <Presentation className={className} aria-hidden="true" />;
   if (type?.includes("spreadsheet") || type?.includes("excel")) return <TableIcon className={className} aria-hidden="true" />;
   return <FileType className={className} aria-hidden="true" />;
+};
+
+// 🚀 NEW: Dynamic Category Icon Component
+const CategoryIcon = ({ category, className }) => {
+  switch (category) {
+    case 'School': return <BookOpen aria-hidden="true" className={className} />;
+    case 'Competitive Exams': return <Trophy aria-hidden="true" className={className} />;
+    case 'Other': return <Lightbulb aria-hidden="true" className={className} />;
+    case 'University':
+    default: return <School aria-hidden="true" className={className} />;
+  }
 };
 
 export default function NoteCard({ note, priority = false }) {
@@ -50,7 +61,7 @@ export default function NoteCard({ note, priority = false }) {
     "@type": ["LearningResource", "Course", "CreativeWork"],
     name: note.title,
     description: note.description || `Academic notes and study material for ${note.course}.`,
-    educationalLevel: "University",
+    educationalLevel: note.category || "University", 
     teaches: note.course,
     author: { "@type": "Person", name: note.user?.name || "StuHive Contributor" },
     datePublished: note.uploadDate,
@@ -104,7 +115,6 @@ export default function NoteCard({ note, priority = false }) {
 
   return (
     <Card
-      // 🚀 FIX: Adding this empty onClick forces iOS/Safari to register touch events outside the popover, automatically closing the planner menu!
       onClick={() => {}} 
       className="w-full max-w-[400px] mx-auto h-full flex flex-col group relative bg-[#050505]
         border border-white/10 rounded-[28px] overflow-visible
@@ -120,10 +130,8 @@ export default function NoteCard({ note, priority = false }) {
     >
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(noteSchema) }} />
 
-      {/* Action Buttons Container (Outside the overflow-hidden wrapper) */}
       <div 
         className="absolute top-4 right-4 z-[60] flex flex-col-reverse sm:flex-row items-center gap-2"
-        // 🚀 FIX: Stops the popover click from triggering the card's dummy click handler
         onClick={(e) => e.stopPropagation()} 
       >
         <div className="bg-black/40 backdrop-blur-xl rounded-full border border-white/10 hover:border-cyan-500/50 transition-colors">
@@ -149,13 +157,10 @@ export default function NoteCard({ note, priority = false }) {
       </div>
 
       <div className="flex flex-col h-full bg-[#050505] relative z-10 rounded-[28px] overflow-hidden">
-        {/* top accent line */}
         <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-50 pointer-events-none" />
 
-        {/* hover glow */}
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none bg-[radial-gradient(900px_circle_at_30%_10%,rgba(34,211,238,0.10),transparent_55%)]" />
 
-        {/* --- TOP SECTION (IMAGE) --- */}
         <div className="relative h-48 sm:h-56 w-full shrink-0 transform-gpu overflow-hidden -mb-[1px] z-0">
           <div className="absolute top-4 left-4 z-40 flex flex-col items-start gap-2.5 max-w-[70%]">
             {note.isFeatured && (
@@ -195,8 +200,7 @@ export default function NoteCard({ note, priority = false }) {
           <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent z-30 pointer-events-none" />
         </div>
 
-        {/* --- BOTTOM SECTION (TEXT) --- */}
-        <div className="flex flex-col flex-grow p-5 sm:p-6 pt-5 relative z-10 bg-[#050505]">
+        <div className="flex flex-col flex-grow p-4 sm:p-6 pt-4 relative z-10 bg-[#050505]">
           <div className="flex-grow space-y-3 block mb-6">
             <Link href={`/notes/${note.slug || note._id}`} title={`Download notes for ${note.course}`} className="outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 rounded-lg block">
               <h3
@@ -209,11 +213,11 @@ export default function NoteCard({ note, priority = false }) {
             </Link>
 
             <div className="text-xs text-gray-400 font-semibold flex items-center gap-2 truncate uppercase tracking-wider relative z-20">
-              <School aria-hidden="true" className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-              <span className="truncate">{note.course}</span> <span className="text-gray-600">•</span>
+              <CategoryIcon category={note.category} className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+              <span className="truncate">{note.course}</span> <span className="text-gray-600 shrink-0">•</span>
               <Link
                 href={`/univ/${note.university?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") || "general"}`}
-                className="truncate hover:text-cyan-300 transition-colors pointer-events-auto"
+                className="truncate hover:text-cyan-300 transition-colors pointer-events-auto shrink-0 max-w-[40%]"
                 title={`View all notes for ${note.university}`}
               >
                 {note.university}
@@ -221,43 +225,43 @@ export default function NoteCard({ note, priority = false }) {
             </div>
           </div>
 
-          {/* Stats Pills */}
-          <div className="flex items-center justify-between text-sm mb-6 flex-wrap gap-2">
+          <div className="flex items-center justify-between text-sm mb-5 flex-wrap gap-2">
             <div
-              className="flex items-center gap-1.5 bg-white/[0.03] shadow-inner px-3.5 py-1.5 rounded-full border border-white/5
+              className="flex items-center gap-1.5 bg-white/[0.03] shadow-inner px-3 py-1.5 rounded-full border border-white/5
                 hover:border-white/10 transition-colors"
               aria-label={`Rated ${note.rating || 0} stars`}
             >
               <StarRating rating={note.rating} size="sm" />
-              <span className="text-[10px] font-bold text-gray-400 ml-1">({note.numReviews})</span>
+              <span className="text-[10px] font-bold text-gray-400 ml-0.5">({note.numReviews})</span>
             </div>
 
-            <div className="flex items-center text-gray-400 text-[10px] gap-3.5 uppercase tracking-widest font-bold bg-white/[0.03] shadow-inner px-3.5 py-1.5 rounded-full border border-white/5 hover:border-white/10 transition-colors">
-              <span className="flex items-center gap-1.5" aria-label={`${note.viewCount || 0} views`}>
-                <Eye aria-hidden="true" className="h-3.5 w-3.5 text-cyan-400/80" /> {note.viewCount || 0}
+            <div className="flex items-center text-gray-400 text-[10px] gap-2.5 uppercase tracking-widest font-bold bg-white/[0.03] shadow-inner px-3 py-1.5 rounded-full border border-white/5 hover:border-white/10 transition-colors">
+              <span className="flex items-center gap-1" aria-label={`${note.viewCount || 0} views`}>
+                <Eye aria-hidden="true" className="h-3.5 w-3.5 text-cyan-400/80 shrink-0" /> {note.viewCount || 0}
               </span>
-              <span className="flex items-center gap-1.5" aria-label={`${note.downloadCount || 0} downloads`}>
-                <Download aria-hidden="true" className="h-3.5 w-3.5 text-emerald-400/80" /> {note.downloadCount || 0}
+              <span className="flex items-center gap-1" aria-label={`${note.downloadCount || 0} downloads`}>
+                <Download aria-hidden="true" className="h-3.5 w-3.5 text-emerald-400/80 shrink-0" /> {note.downloadCount || 0}
               </span>
             </div>
           </div>
 
-          {/* User Info & Get Button */}
-          <div className="flex items-center justify-between gap-4 mt-auto pt-2">
-            <div className="flex items-center gap-3 overflow-hidden pr-2 flex-1 min-w-0">
-              <img
-                src={note.user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(note.user?.name || "U")}&background=random&color=fff`}
-                alt={`${note.user?.name}'s avatar`}
-                width={36}
-                height={36}
-                decoding="async"
-                loading="lazy"
-                // 🚀 FIX: Added min-w-[36px] min-h-[36px] and aspect-square to prevent oval squishing
-                className="w-9 h-9 min-w-[36px] min-h-[36px] aspect-square rounded-full border border-white/20 shrink-0 object-cover"
-              />
-              <div className="flex flex-col min-w-0">
-                <span className="text-[11px] font-extrabold truncate text-white/90">{note.user?.name || "Unknown"}</span>
-                <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest mt-0.5 truncate">{formatDate(note.uploadDate)}</span>
+          <div className="flex items-center justify-between gap-2 mt-auto">
+            {/* 🚀 FIXED: Added max-w-[65%] to ensure text truncates before squishing the button or avatar */}
+            <div className="flex items-center gap-2.5 overflow-hidden flex-1 max-w-[65%]">
+              <div className="shrink-0">
+                <img
+                  src={note.user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(note.user?.name || "U")}&background=random&color=fff`}
+                  alt={`${note.user?.name}'s avatar`}
+                  width={34}
+                  height={34}
+                  decoding="async"
+                  loading="lazy"
+                  className="w-[34px] h-[34px] min-w-[34px] min-h-[34px] rounded-full border border-white/20 object-cover"
+                />
+              </div>
+              <div className="flex flex-col min-w-0 pr-1">
+                <span className="text-[11px] font-extrabold truncate text-white/90 block w-full">{note.user?.name || "Unknown"}</span>
+                <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest mt-[1px] truncate block w-full">{formatDate(note.uploadDate)}</span>
               </div>
             </div>
 
@@ -265,7 +269,7 @@ export default function NoteCard({ note, priority = false }) {
               disabled={isDownloading}
               onClick={handleDownload}
               aria-label={`Download ${note.title}`}
-              className="group relative h-10 rounded-full px-5 gap-2 shrink-0
+              className="group relative h-9 rounded-full px-4 gap-1.5 shrink-0
                 bg-cyan-500/10 border border-cyan-500/30 text-cyan-300
                 font-black uppercase tracking-widest text-[10px]
                 transition-all duration-300 transform-gpu will-change-transform
@@ -274,12 +278,12 @@ export default function NoteCard({ note, priority = false }) {
                 active:scale-95 overflow-hidden"
             >
               <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(700px_circle_at_30%_20%,rgba(255,255,255,0.20),transparent_55%)]" />
-              <span className="relative z-10 inline-flex items-center gap-2">
+              <span className="relative z-10 inline-flex items-center gap-1.5">
                 {isDownloading ? (
-                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                  <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <>
-                    <Download aria-hidden="true" className="h-4 w-4" /> <span>Get</span>
+                    <Download aria-hidden="true" className="h-3.5 w-3.5" /> <span>Get</span>
                   </>
                 )}
               </span>
