@@ -12,7 +12,7 @@ import { authOptions } from "@/lib/auth";
 import { deleteFileFromR2 } from "@/lib/r2"; 
 import { createNotification } from "@/actions/notification.actions";
 import Opportunity from "@/lib/models/Opportunity";
-
+import mongoose from "mongoose"; // 🚀 Added for ID validation
 // Helper to check admin status
 async function isAdmin() {
   const session = await getServerSession(authOptions);
@@ -549,39 +549,52 @@ export async function getPendingPayouts() {
 }
 
 /**
- * 🚀 MARKETPLACE PAYOUTS: MARK AS PAID (RESET BALANCE)
+ * 🚀 FIXED: MARKETPLACE PAYOUTS: MARK AS PAID
  */
 export async function processPayout(userId) {
   await connectDB();
-  if (!(await isAdmin())) return { error: "Unauthorized" };
   
+  if (!(await isAdmin())) return { success: false, error: "Unauthorized" };
+
+  // 🚀 THE FIX: Use the top-level helper instead of mongoose.Types.ObjectId
+  if (!mongoose.isValidObjectId(userId)) {
+    return { success: false, error: "Invalid User ID format." };
+  }
+
   try {
-    const targetUser = await User.findById(userId);
+    // We search first to ensure the user exists and has a balance
+    const targetUser = await User.findById(userId).select('walletBalance');
     if (!targetUser) return { success: false, error: "User not found" };
 
-    // 🚀 NEW: Prevent processing if the balance is already 0
     if (targetUser.walletBalance <= 0) {
-      return { success: false, error: "This user has no pending balance." };
+      return { success: false, error: "No pending balance to pay." };
     }
 
-    // Capture the amount for the notification before resetting
     const payoutAmount = targetUser.walletBalance.toFixed(2);
 
-    // Reset balance to 0 after admin has manually transferred the funds
-    targetUser.walletBalance = 0;
-    await targetUser.save();
+    // 🚀 ATOMIC UPDATE: Bypasses the "invalid array element" issue 
+    // by only touching the walletBalance field.
+    const updateResult = await User.updateOne(
+      { _id: userId },
+      { $set: { walletBalance: 0 } }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      throw new Error("Failed to reset wallet balance.");
+    }
     
-    // Optional: Send a notification to the user that they got paid!
+    // Send Success Notification
     await createNotification({
-      recipientId: targetUser._id,
+      recipientId: userId,
       type: 'SYSTEM',
-      message: `Your payout of ₹${payoutAmount} has been processed! The funds should reflect in your bank/UPI shortly.`,
-      link: `/wallet`
+      message: `Your payout of ₹${payoutAmount} has been processed! The funds should reflect in your account shortly.`,
+      link: `/profile`
     });
 
     revalidatePath("/admin");
     return { success: true };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error("Payout Processing Error:", error);
+    return { success: false, error: error.message || "Internal Server Error" };
   }
 }
