@@ -4,7 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import crypto from "crypto";
 import { generateUploadUrl } from "@/lib/r2"; // ✅ Your R2 helper
-export async function getUploadUrl(fileName, fileType, requestThumbnail = false) {
+
+export async function getUploadUrl(fileName, fileType, requestThumbnail = false, requestPreview = false) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return { error: "Unauthorized" };
@@ -31,12 +32,24 @@ export async function getUploadUrl(fileName, fileType, requestThumbnail = false)
         thumbUrl = await generateUploadUrl(thumbKey, "image/webp");
     }
 
+    // 🚀 NEW: Generate R2 URL for the Secure 3-Page Preview PDF
+    let previewUploadUrl = null;
+    let previewKey = null;
+
+    if (requestPreview) {
+        // Previews are always strictly PDFs
+        previewKey = `previews/${session.user.id}/${timestamp}-${randomString}-preview.pdf`;
+        previewUploadUrl = await generateUploadUrl(previewKey, "application/pdf");
+    }
+
     return { 
         success: true,
         uploadUrl, 
         fileKey,
         thumbUrl,   
-        thumbKey    
+        thumbKey,
+        previewUploadUrl, // 🚀 Return preview URL to frontend
+        previewKey        // 🚀 Return preview Key to save in DB
     };
 
   } catch (error) {

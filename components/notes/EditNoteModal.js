@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation"; 
+import { PDFDocument } from 'pdf-lib'; // 🚀 NEW: Import pdf-lib
 
-// 🚀 DYNAMIC LABEL CONFIGURATION (Synced with UploadForm)
 const CATEGORY_CONFIG = {
   "University": {
     instLabel: "University / College", instIcon: <School className="w-4 h-4 text-blue-400" />, instPlace: "e.g. Mumbai University",
@@ -52,7 +52,6 @@ export default function EditNoteModal({ note, onClose }) {
   const [loading, setLoading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
   
-  // --- Form State ---
   const [newFile, setNewFile] = useState(null); 
   const [formData, setFormData] = useState({
     title: note?.title || "",
@@ -62,7 +61,6 @@ export default function EditNoteModal({ note, onClose }) {
     course: note?.course || "",
     subject: note?.subject || "",
     year: note?.year || "",
-    // 🚀 Monetization Fields
     isPaid: note?.isPaid || false,
     price: note?.price || 0,
     previewPages: note?.previewPages || 3,
@@ -70,26 +68,42 @@ export default function EditNoteModal({ note, onClose }) {
 
   const labels = CATEGORY_CONFIG[formData.category];
 
+  // 🚀 NEW: Frontend PDF Slicer Logic
+  const generatePreviewPdf = async (originalFile, pagesToKeep) => {
+    try {
+      const arrayBuffer = await originalFile.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const previewPdf = await PDFDocument.create();
+      const totalPages = pdfDoc.getPageCount();
+      const pagesToCopyCount = Math.min(pagesToKeep, totalPages);
+      if (pagesToCopyCount === 0) return null;
+      const pageIndices = Array.from({ length: pagesToCopyCount }, (_, i) => i);
+      const copiedPages = await previewPdf.copyPages(pdfDoc, pageIndices);
+      copiedPages.forEach((page) => previewPdf.addPage(page));
+      const pdfBytes = await previewPdf.save();
+      return new File([new Blob([pdfBytes])], `preview_${originalFile.name}`, { type: 'application/pdf' });
+    } catch (error) {
+      console.error("Preview generation failed:", error);
+      return null;
+    }
+  };
+
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const allowedTypes = [
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "application/vnd.ms-powerpoint",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-excel",
-        "text/plain"
+        "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel", "text/plain"
       ];
 
       if (!allowedTypes.includes(file.type)) {
         toast({ title: "Unsupported Format", description: "Please upload PDF, Word, PPT, or Excel.", variant: "destructive" });
         return;
       }
-      if (file.size > 15 * 1024 * 1024) {
-        toast({ title: "File too large", description: "Limit is 15MB", variant: "destructive" });
+      if (file.size > 25 * 1024 * 1024) {
+        toast({ title: "File too large", description: "Limit is 25MB", variant: "destructive" });
         return;
       }
       setNewFile(file);
@@ -100,7 +114,6 @@ export default function EditNoteModal({ note, onClose }) {
     e.preventDefault();
     if (loading) return;
 
-    // Pricing validation
     if (formData.isPaid && (formData.price < 10 || formData.price > 1000)) {
       return toast({ title: "Invalid Price", description: "Price must be between ₹10 and ₹1000.", variant: "destructive" });
     }
@@ -110,24 +123,34 @@ export default function EditNoteModal({ note, onClose }) {
     try {
         let fileData = null;
 
-        // --- 1. HANDLE NEW FILE UPLOAD IF SELECTED ---
         if (newFile) {
-            setUploadStatus("Processing file...");
+            setUploadStatus("Processing File...");
             let thumbnailFile = null;
+            let previewFile = null;
+
             if (newFile.type === "application/pdf") {
                 thumbnailFile = await generatePdfThumbnail(newFile);
+                if (formData.isPaid) {
+                    setUploadStatus("Generating Secure Preview...");
+                    previewFile = await generatePreviewPdf(newFile, formData.previewPages);
+                }
             }
 
-            setUploadStatus("Uploading to R2...");
-            const { success, uploadUrl, fileKey, thumbUrl, thumbKey, error: urlError } = 
-                await getUploadUrl(newFile.name, newFile.type, !!thumbnailFile);
+            setUploadStatus("Requesting Storage slots...");
+            const { success, uploadUrl, fileKey, thumbUrl, thumbKey, previewUploadUrl, previewKey, error: urlError } = 
+                await getUploadUrl(newFile.name, newFile.type, !!thumbnailFile, !!previewFile);
             
             if (!success) throw new Error(urlError);
 
+            setUploadStatus("Uploading to R2...");
             await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": newFile.type }, body: newFile });
 
             if (thumbnailFile && thumbUrl) {
                 await fetch(thumbUrl, { method: "PUT", headers: { "Content-Type": "image/webp" }, body: thumbnailFile });
+            }
+
+            if (previewFile && previewUploadUrl) {
+                await fetch(previewUploadUrl, { method: "PUT", headers: { "Content-Type": "application/pdf" }, body: previewFile });
             }
 
             fileData = {
@@ -136,11 +159,11 @@ export default function EditNoteModal({ note, onClose }) {
                 fileSize: newFile.size,
                 fileKey: fileKey,
                 thumbnailKey: thumbKey || null,
+                previewKey: previewKey || null,
             };
         }
 
-        // --- 2. UPDATE DATABASE ---
-        setUploadStatus("Saving changes...");
+        setUploadStatus("Saving Changes...");
         const dataToSubmit = {
             ...formData,
             price: formData.isPaid ? Number(formData.price) : 0,
@@ -151,7 +174,7 @@ export default function EditNoteModal({ note, onClose }) {
         const res = await updateNote(note._id, dataToSubmit, session?.user?.id);
         
         if (res.success) {
-            toast({ title: "Note Updated", description: "Changes saved successfully." });
+            toast({ title: "Note Updated", description: "All changes are now live." });
             onClose(); 
             router.refresh(); 
         } else {
@@ -181,7 +204,6 @@ export default function EditNoteModal({ note, onClose }) {
           
           <form onSubmit={handleSubmit} className="space-y-8">
               
-              {/* --- Section 1: Category Selection --- */}
               <div className="space-y-3">
                 <Label className="text-xs font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-500">Material Type</Label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -203,7 +225,6 @@ export default function EditNoteModal({ note, onClose }) {
                 </div>
               </div>
 
-              {/* --- Section 2: Metadata Fields --- */}
               <div className="space-y-4">
                   <div className="space-y-1.5">
                       <Label className="text-sm font-semibold text-foreground/90">Title</Label>
@@ -215,7 +236,6 @@ export default function EditNoteModal({ note, onClose }) {
                   </div>
               </div>
 
-              {/* --- Section 3: Academic Info (Dynamic) --- */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label className="flex items-center gap-2 text-sm font-semibold text-foreground/90">{labels.instIcon} {labels.instLabel}</Label>
@@ -235,77 +255,43 @@ export default function EditNoteModal({ note, onClose }) {
                   </div>
               </div>
 
-              {/* --- Section 4: Monetization --- */}
               <div className="p-4 md:p-5 border border-emerald-500/20 bg-emerald-500/5 rounded-2xl space-y-4">
                 <Label className="text-xs font-bold uppercase tracking-widest text-emerald-500 flex items-center gap-2">
                   Monetization Settings
                 </Label>
-                
                 <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    variant={!formData.isPaid ? "default" : "outline"}
-                    onClick={() => setFormData({...formData, isPaid: false, price: 0})}
-                    className={`flex-1 h-10 text-xs md:text-sm ${!formData.isPaid ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"}`}
-                  >
-                    Free Resource
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={formData.isPaid ? "default" : "outline"}
-                    onClick={() => setFormData({...formData, isPaid: true, price: formData.price || 49})}
-                    className={`flex-1 h-10 text-xs md:text-sm ${formData.isPaid ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"}`}
-                  >
-                    Premium Note
-                  </Button>
+                  <Button type="button" variant={!formData.isPaid ? "default" : "outline"} onClick={() => setFormData({...formData, isPaid: false, price: 0})} className={`flex-1 h-10 text-xs md:text-sm ${!formData.isPaid ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"}`}>Free Resource</Button>
+                  <Button type="button" variant={formData.isPaid ? "default" : "outline"} onClick={() => setFormData({...formData, isPaid: true, price: formData.price || 49})} className={`flex-1 h-10 text-xs md:text-sm ${formData.isPaid ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"}`}>Premium Note</Button>
                 </div>
-
                 {formData.isPaid && (
                   <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 pt-2">
                     <div className="space-y-1.5">
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Price (INR)</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">₹</span>
-                        <Input 
-                          type="number" min="10" max="1000" required={formData.isPaid}
-                          value={formData.price}
-                          onChange={e => setFormData({...formData, price: Number(e.target.value)})}
-                          className="pl-7 h-10 bg-black/50 border-emerald-500/30 focus-visible:ring-emerald-500 rounded-xl"
-                        />
+                        <Input type="number" min="10" max="1000" value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="pl-7 h-10 bg-black/50 border-emerald-500/30 focus-visible:ring-emerald-500 rounded-xl" />
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Preview Pages</Label>
-                      <Input 
-                        type="number" min="1" max="10" required={formData.isPaid}
-                        value={formData.previewPages}
-                        onChange={e => setFormData({...formData, previewPages: Number(e.target.value)})}
-                        className="h-10 bg-black/50 border-emerald-500/30 focus-visible:ring-emerald-500 rounded-xl"
-                      />
+                      <Input type="number" min="1" max="10" value={formData.previewPages} onChange={e => setFormData({...formData, previewPages: Number(e.target.value)})} className="h-10 bg-black/50 border-emerald-500/30 focus-visible:ring-emerald-500 rounded-xl" />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* --- Section 5: FILE REPLACEMENT --- */}
               <div className="pt-2">
-                  <Label className="text-xs font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400 mb-3 block">
-                    Replace Document (Optional)
-                  </Label>
+                  <Label className="text-xs font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400 mb-3 block">Replace Document (Optional)</Label>
                   <div className="relative group border-2 border-dashed border-border rounded-[1.5rem] p-6 transition-all hover:border-indigo-500/50 hover:bg-indigo-500/5 bg-secondary/20 text-center cursor-pointer overflow-hidden">
                       <input type="file" accept=".pdf,.docx,.pptx,.xlsx,.txt" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
                       {newFile ? (
                           <div className="flex flex-col items-center justify-center gap-2 animate-in fade-in zoom-in duration-300">
-                              <div className="p-2 bg-indigo-500/20 rounded-full">
-                                  <FileText className="w-6 h-6 text-indigo-400" />
-                              </div>
+                              <div className="p-2 bg-indigo-500/20 rounded-full"><FileText className="w-6 h-6 text-indigo-400" /></div>
                               <span className="text-indigo-400 text-sm font-bold truncate max-w-[250px]">{newFile.name}</span>
                           </div>
                       ) : (
                           <div className="flex flex-col items-center gap-2 transform transition-transform group-hover:-translate-y-1">
-                              <div className="p-3 bg-secondary/50 rounded-full group-hover:bg-indigo-500/10 transition-colors">
-                                  <UploadCloud className="w-6 h-6 text-muted-foreground group-hover:text-indigo-400 transition-colors" />
-                              </div>
+                              <div className="p-3 bg-secondary/50 rounded-full group-hover:bg-indigo-500/10 transition-colors"><UploadCloud className="w-6 h-6 text-muted-foreground group-hover:text-indigo-400 transition-colors" /></div>
                               <span className="text-sm font-medium text-foreground/80">Tap to upload a new version</span>
                               <span className="text-[10px] text-muted-foreground">Current: {note.fileName}</span>
                           </div>
@@ -313,17 +299,10 @@ export default function EditNoteModal({ note, onClose }) {
                   </div>
               </div>
 
-              {/* Submit Buttons */}
               <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 border-t border-white/5">
-                  <Button type="button" variant="ghost" onClick={onClose} className="rounded-xl h-12 hover:bg-secondary/50">
-                    Cancel
-                  </Button>
+                  <Button type="button" variant="ghost" onClick={onClose} className="rounded-xl h-12 hover:bg-secondary/50">Cancel</Button>
                   <Button type="submit" disabled={loading} className="rounded-xl h-12 px-8 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 shadow-lg shadow-blue-500/25 transition-all font-bold">
-                      {loading ? (
-                          <><Loader2 className="animate-spin mr-2 w-4 h-4" /> {uploadStatus}</>
-                      ) : (
-                          <><Save className="mr-2 w-4 h-4" /> Save Changes</>
-                      )}
+                      {loading ? <><Loader2 className="animate-spin mr-2 w-4 h-4" /> {uploadStatus}</> : <><Save className="mr-2 w-4 h-4" /> Save Changes</>}
                   </Button>
               </div>
           </form>

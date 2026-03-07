@@ -12,6 +12,7 @@ import { Loader2, UploadCloud, FileText, BookOpen, School, GraduationCap, Calend
 import { getUploadUrl } from "@/actions/upload.actions"; 
 import { createNote } from "@/actions/note.actions";
 import { generatePdfThumbnail } from "@/utils/generateThumbnail"; 
+import { PDFDocument } from 'pdf-lib'; // 🚀 NEW: Import pdf-lib
 
 // 🚀 DYNAMIC LABEL CONFIGURATION
 const CATEGORY_CONFIG = {
@@ -58,13 +59,11 @@ export default function UploadForm() {
     course: "",
     subject: "",
     year: "",
-    // 🚀 NEW: Monetization Fields
     isPaid: false,
     price: 0,
     previewPages: 3,
   });
 
-  // Get current labels based on selected category
   const labels = CATEGORY_CONFIG[formData.category];
 
   const handleFileChange = (e) => {
@@ -85,11 +84,37 @@ export default function UploadForm() {
         toast({ title: "Unsupported Format", description: "Please upload PDF, Word, PPT, or Excel.", variant: "destructive" });
         return;
       }
-      if (selectedFile.size > 15 * 1024 * 1024) {
-        toast({ title: "File Too Large", description: "Max limit is 15MB.", variant: "destructive" });
+      if (selectedFile.size > 25 * 1024 * 1024) { // Increased to 25MB for premium notes
+        toast({ title: "File Too Large", description: "Max limit is 25MB.", variant: "destructive" });
         return;
       }
       setFile(selectedFile);
+    }
+  };
+
+  // 🚀 NEW: Function to slice the PDF on the frontend
+  const generatePreviewPdf = async (originalFile, pagesToKeep) => {
+    try {
+      const arrayBuffer = await originalFile.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const previewPdf = await PDFDocument.create();
+      
+      const totalPages = pdfDoc.getPageCount();
+      const pagesToCopyCount = Math.min(pagesToKeep, totalPages);
+      
+      if (pagesToCopyCount === 0) return null;
+
+      const pageIndices = Array.from({ length: pagesToCopyCount }, (_, i) => i);
+      const copiedPages = await previewPdf.copyPages(pdfDoc, pageIndices);
+      copiedPages.forEach((page) => previewPdf.addPage(page));
+      
+      const pdfBytes = await previewPdf.save();
+      const previewBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+      
+      return new File([previewBlob], `preview_${originalFile.name}`, { type: 'application/pdf' });
+    } catch (error) {
+      console.error("Failed to generate preview PDF:", error);
+      return null;
     }
   };
 
@@ -99,7 +124,6 @@ export default function UploadForm() {
     if (loading) return; 
     if (!file) return toast({ title: "File Required", description: "Please select a document to upload.", variant: "destructive" });
 
-    // Enforce pricing logic validation
     if (formData.isPaid && (formData.price < 10 || formData.price > 1000)) {
       return toast({ title: "Invalid Price", description: "Price must be between ₹10 and ₹1000.", variant: "destructive" });
     }
@@ -107,28 +131,45 @@ export default function UploadForm() {
     setLoading(true);
     try {
       let thumbnailFile = null;
+      let previewFile = null;
+
       if (file.type === "application/pdf") {
-          setUploadStatus("Processing...");
+          setUploadStatus("Processing PDF...");
           thumbnailFile = await generatePdfThumbnail(file);
+          
+          // 🚀 IF PAID: Generate the strict preview file
+          if (formData.isPaid) {
+              setUploadStatus("Generating Secure Preview...");
+              previewFile = await generatePreviewPdf(file, formData.previewPages);
+          }
       }
 
-      setUploadStatus("Preparing...");
-      const { success, uploadUrl, fileKey, thumbUrl, thumbKey, error } = 
-        await getUploadUrl(file.name, file.type, !!thumbnailFile);
+      setUploadStatus("Preparing Upload Slots...");
+      // 🚀 Pass previewFile boolean to getUploadUrl to get a 3rd upload slot
+      const { success, uploadUrl, fileKey, thumbUrl, thumbKey, previewUploadUrl, previewKey, error } = 
+        await getUploadUrl(file.name, file.type, !!thumbnailFile, !!previewFile);
       
       if (!success) throw new Error(error);
 
-      setUploadStatus("Uploading...");
+      setUploadStatus("Uploading Document...");
+      
+      // Upload Main File
       const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": file.type },
         body: file,
       });
-
       if (!uploadRes.ok) throw new Error("Upload failed.");
 
+      // Upload Thumbnail
       if (thumbnailFile && thumbUrl) {
           await fetch(thumbUrl, { method: "PUT", headers: { "Content-Type": "image/webp" }, body: thumbnailFile });
+      }
+
+      // 🚀 Upload Secure Preview File
+      if (previewFile && previewUploadUrl) {
+          setUploadStatus("Uploading Preview...");
+          await fetch(previewUploadUrl, { method: "PUT", headers: { "Content-Type": "application/pdf" }, body: previewFile });
       }
 
       setUploadStatus("Finalizing...");
@@ -138,6 +179,7 @@ export default function UploadForm() {
         fileSize: file.size,
         fileKey: fileKey,
         thumbnailKey: thumbKey || null,
+        previewKey: previewKey || null, // 🚀 Save preview key to DB
       };
 
       const res = await createNote({ ...formData, fileData, userId: session.user.id });
@@ -256,7 +298,7 @@ export default function UploadForm() {
           </div>
         </div>
 
-        {/* --- 🚀 NEW: Section 4: Monetization --- */}
+        {/* --- Section 4: Monetization --- */}
         <div className="space-y-4">
           <h2 className="text-xs md:text-sm font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-green-500">
             4. Monetization (Earn 80% Revenue)
@@ -344,7 +386,7 @@ export default function UploadForm() {
                   </div>
                   <p className="font-bold text-base md:text-lg text-foreground/90">Tap to browse</p>
                   <p className="text-[11px] md:text-xs text-muted-foreground mt-1.5 md:mt-2 max-w-[200px] md:max-w-[250px] leading-relaxed">
-                      PDF, DOCX, PPTX, XLSX, TXT (Max 15MB)
+                      PDF, DOCX, PPTX, XLSX, TXT (Max 25MB)
                   </p>
                 </div>
               )}

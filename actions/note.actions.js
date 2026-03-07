@@ -263,6 +263,7 @@ export async function createNote({ title, description, category, university, cou
       fileName: fileData.fileName,
       fileKey: fileData.fileKey,          
       thumbnailKey: fileData.thumbnailKey, 
+      previewKey: fileData.previewKey || null, // 🚀 NEW: Added previewKey support
       fileType: fileData.fileType,
       fileSize: fileData.fileSize,
       user: userId,
@@ -322,13 +323,15 @@ export async function updateNote(noteId, data, userId) {
 
     // Optional file data update
     if (data.fileData) {
-      // Delete old files from R2 first
+      // 🚀 Clean up ALL old files from R2
       if (note.fileKey) await deleteFileFromR2(note.fileKey);
       if (note.thumbnailKey) await deleteFileFromR2(note.thumbnailKey);
+      if (note.previewKey) await deleteFileFromR2(note.previewKey); // 🚀 NEW: Clean up old preview file
 
       note.fileName = data.fileData.fileName;
       note.fileKey = data.fileData.fileKey;
       note.thumbnailKey = data.fileData.thumbnailKey;
+      note.previewKey = data.fileData.previewKey || null; // 🚀 NEW: Store updated previewKey
       note.fileType = data.fileData.fileType;
       note.fileSize = data.fileData.fileSize;
     }
@@ -366,8 +369,10 @@ export async function deleteNote(noteId, userId) {
       return { success: false, error: "Unauthorized" };
     }
 
+    // 🚀 Clean up R2 storage
     if (note.fileKey) await deleteFileFromR2(note.fileKey);
     if (note.thumbnailKey) await deleteFileFromR2(note.thumbnailKey);
+    if (note.previewKey) await deleteFileFromR2(note.previewKey); // 🚀 NEW: Clean up preview file
 
     await Promise.all([
       Note.findByIdAndDelete(noteId),

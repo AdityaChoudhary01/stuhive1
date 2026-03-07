@@ -133,9 +133,16 @@ export default async function ViewNotePage({ params }) {
   // Grant access if: free, purchased, uploader, or admin
   const hasAccess = !note.isPaid || note.price === 0 || hasPurchased || isOwner || canEdit;
 
+  // 🚀 SECURE KEY SELECTION
+  // If the user has access, fetch the full file.
+  // If not, try to fetch the preview file. If no preview exists, fallback to full (frontend will handle blurring/limits).
+  const targetKey = hasAccess 
+    ? note.fileKey 
+    : (note.previewKey || note.fileKey);
+
   const [relatedNotes, signedUrl] = await Promise.all([
     getRelatedNotes(note._id),
-    generateReadUrl(note.fileKey, note.fileName)
+    generateReadUrl(targetKey, note.fileName)
   ]);
   
   const reviewCount = note.reviews?.length || 0;
