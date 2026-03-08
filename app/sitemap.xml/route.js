@@ -148,7 +148,7 @@ ${allPages
     return new Response(sitemap, {
       headers: {
         "Content-Type": "application/xml",
-        "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=43200", 
+        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=600",
       },
     });
   } catch (error) {
