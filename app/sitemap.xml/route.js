@@ -49,7 +49,7 @@ export async function GET() {
 
     // 🚀 STATIC ROUTES
     const staticRoutes = [
-      "", "/about", "/contact", "/blogs", "/search", "/shared-collections", "/requests",
+      "", "/about", "/contact", "/blogs", "/search", "/global-search", "/shared-collections", "/requests",
       "/login","/signup", "/roadmaps", "/updates", 
       "/donate", "/supporters", "/terms", "/privacy", "/dmca", "/hive-points",
       "/premium-purchase-policy" // 🚀 ADDED: Premium Purchase Policy Link

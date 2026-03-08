@@ -6,6 +6,7 @@ import User from "@/lib/models/User";
 import Collection from "@/lib/models/Collection";
 import Opportunity from "@/lib/models/Opportunity"; 
 import StudyEvent from "@/lib/models/StudyEvent"; 
+import University from "@/lib/models/University"; 
 
 const APP_URL = process.env.NEXTAUTH_URL || "https://www.stuhive.in";
 const INDEXNOW_KEY = "363d05a6f7284bcf8b9060f495d58655";
@@ -22,37 +23,54 @@ export async function GET(request) {
   try {
     await connectDB();
 
-    // 1. Static & Main Hub Pages
+    // 1. Static & Main Hub Pages (Consolidated from your lists)
     let urls = [
       `${APP_URL}/`,
-      `${APP_URL}/search`,
-      `${APP_URL}/blogs`,
-      `${APP_URL}/updates`, 
-      `${APP_URL}/roadmaps`, 
-      `${APP_URL}/shared-collections`,
-      `${APP_URL}/requests`,
-      `${APP_URL}/hive-points`,
       `${APP_URL}/about`,
       `${APP_URL}/contact`,
-      `${APP_URL}/privacy`,
+      `${APP_URL}/blogs`,
+      `${APP_URL}/global-search`,
+      `${APP_URL}/search`,
+      `${APP_URL}/shared-collections`,
+      `${APP_URL}/requests`,
+      `${APP_URL}/login`,
+      `${APP_URL}/signup`,
+      `${APP_URL}/roadmaps`,
+      `${APP_URL}/updates`,
+      `${APP_URL}/donate`,
+      `${APP_URL}/supporters`,
       `${APP_URL}/terms`,
+      `${APP_URL}/privacy`,
       `${APP_URL}/dmca`,
+      `${APP_URL}/hive-points`,
+      `${APP_URL}/premium-purchase-policy`,
     ];
 
-    // 🚀 Parallel Data Fetching for speed
-    const [blogs, notes, users, collections, opportunities, roadmaps] = await Promise.all([
+    // 🚀 Parallel Data Fetching
+    const [
+      blogs, 
+      notes, 
+      users, 
+      collections, 
+      opportunities, 
+      roadmaps, 
+      professionalUnivs,
+      noteUnivs
+    ] = await Promise.all([
       Blog.find({}).select('slug').lean(),
-      Note.find({}).select('slug _id').lean(), // 🚀 FIXED: Ensure slug is selected
+      Note.find({}).select('slug _id').lean(), 
       User.find({}).select('_id').lean(),
       Collection.find({ visibility: 'public' }).select('slug').lean(),
       Opportunity.find({ isPublished: true }).select('slug').lean(), 
       StudyEvent.find({ isPublic: true }).select('slug').lean(), 
+      University.find({}).select('slug').lean(),
+      Note.distinct("university")
     ]);
 
     // 2. Add Dynamic Blogs
     blogs.forEach(b => b.slug && urls.push(`${APP_URL}/blogs/${b.slug}`));
 
-    // 3. Add Dynamic Notes (🚀 FIXED to use slug fallback)
+    // 3. Add Dynamic Notes
     notes.forEach(n => urls.push(`${APP_URL}/notes/${n.slug || n._id.toString()}`));
 
     // 4. Add Dynamic Public Profiles
@@ -66,6 +84,28 @@ export async function GET(request) {
 
     // 7. Add Dynamic Public Roadmaps
     roadmaps.forEach(r => r.slug && urls.push(`${APP_URL}/roadmaps/${r.slug}`));
+
+    // 8. Add University Hubs with Deduplication
+    const submittedUnivSlugs = new Set();
+    
+    // Professional Hubs
+    professionalUnivs.forEach(u => {
+      if (u.slug) {
+        urls.push(`${APP_URL}/univ/${u.slug}`);
+        submittedUnivSlugs.add(u.slug);
+      }
+    });
+
+    // Auto-generated Hubs (from distinct Note fields)
+    noteUnivs.forEach(name => {
+      if (name) {
+        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        if (!submittedUnivSlugs.has(slug)) {
+          urls.push(`${APP_URL}/univ/${slug}`);
+          submittedUnivSlugs.add(slug);
+        }
+      }
+    });
 
     // 🚀 Submit to IndexNow API
     const response = await fetch("https://api.indexnow.org/indexnow", {
