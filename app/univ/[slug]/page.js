@@ -123,7 +123,7 @@ export default async function UniversityPage({ params }) {
             fill 
             className="object-cover opacity-20 blur-[2px] mix-blend-screen" 
             priority 
-            unoptimized // 🚀 Matches blog detail logic for immediate R2 display
+            unoptimized 
           />
         )}
         <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-cyan-950/30 to-background pointer-events-none" />
@@ -141,8 +141,8 @@ export default async function UniversityPage({ params }) {
                     src={details.logo} 
                     alt={`${universityName} Logo`} 
                     fill 
-                    className="object-cover p-2" 
-                    unoptimized // 🚀 Ensures fresh logo renders correctly
+                    className="object-cover" // 🚀 Changed from object-contain p-2 to object-cover to match avatar style
+                    unoptimized 
                  />
              ) : (
                  <School className="w-10 h-10 text-cyan-400" aria-hidden="true" />
