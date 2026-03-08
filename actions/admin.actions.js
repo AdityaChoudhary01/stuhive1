@@ -642,6 +642,17 @@ export async function toggleVerifiedEducator(userId) {
   }
 }
 
+// Helper to extract Key from cdn.stuhive.in or r2.stuhive.in URL
+const getR2KeyFromUrl = (url) => {
+  if (!url) return null;
+  try {
+    const urlObj = new URL(url);
+    // If your key is the pathname, remove the leading slash
+    return urlObj.pathname.startsWith('/') ? urlObj.pathname.substring(1) : urlObj.pathname;
+  } catch (e) {
+    return null;
+  }
+};
 
 export async function getAllUniversities() {
   await connectDB();
@@ -649,91 +660,77 @@ export async function getAllUniversities() {
   if (session?.user?.role !== "admin") throw new Error("Unauthorized");
 
   try {
-    // 1. Get unique university names from existing Notes
     const notesUniversities = await Note.distinct("university");
-    
-    // 2. Get existing professional hub configurations
     const professionalConfigs = await University.find().lean();
 
-    // 3. Merge them: Ensure every name from Notes exists in the list
     const combined = notesUniversities
       .filter(name => name && name.trim() !== "")
       .map(name => {
-        // Find if we already have a professional config for this name
         const config = professionalConfigs.find(
           c => c.name.toLowerCase() === name.toLowerCase()
         );
-
-        if (config) {
-          return { ...config, _id: config._id.toString() };
-        }
-
-        // Otherwise, return a "Virtual Hub" (Not yet professionalized)
+        if (config) return { ...config, _id: config._id.toString() };
         return {
           name: name,
           slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''),
-          isVirtual: true, // Marker to show it needs setup
+          isVirtual: true,
           location: "",
           logo: "",
         };
       });
 
-    // Sort alphabetically
     return combined.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
-    console.error("Error fetching universities:", error);
     return [];
   }
 }
 
-/**
- * 2. UPSERT UNIVERSITY (Save Professional Details & Images)
- */
 export async function upsertUniversity(data) {
   await connectDB();
   const session = await getServerSession(authOptions);
   if (session?.user?.role !== "admin") return { success: false, error: "Unauthorized" };
 
   try {
-    // Generate SEO friendly slug from name
-    const slug = data.name.toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)+/g, '');
+    const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
     
+    // 🚀 1. Find existing record to check for old images
+    const existingUni = await University.findOne({ slug });
+
+    if (existingUni) {
+      // 🚀 2. Delete old LOGO if it changed
+      if (existingUni.logo && existingUni.logo !== data.logo) {
+        const oldLogoKey = getR2KeyFromUrl(existingUni.logo);
+        if (oldLogoKey) await deleteFileFromR2(oldLogoKey);
+      }
+      // 🚀 3. Delete old COVER if it changed
+      if (existingUni.coverImage && existingUni.coverImage !== data.coverImage) {
+        const oldCoverKey = getR2KeyFromUrl(existingUni.coverImage);
+        if (oldCoverKey) await deleteFileFromR2(oldCoverKey);
+      }
+    }
+
     const updatePayload = {
       name: data.name,
       slug: slug,
       description: data.description,
-      logo: data.logo,         // 🚀 R2 URL from frontend upload
-      coverImage: data.coverImage, // 🚀 R2 URL from frontend upload
+      logo: data.logo,
+      coverImage: data.coverImage,
       location: data.location,
       website: data.website,
       metaTitle: data.metaTitle,
       metaDescription: data.metaDescription,
-      keywords: data.keywords || [],
     };
 
-    // Find by slug and update, or create new if it doesn't exist
-    await University.findOneAndUpdate(
-      { slug: slug },
-      updatePayload,
-      { upsert: true, new: true }
-    );
+    await University.findOneAndUpdate({ slug }, updatePayload, { upsert: true });
 
-    // BUST CACHE: Update the public hub page and admin dashboard instantly
     revalidatePath(`/univ/${slug}`);
     revalidatePath('/admin');
-    
     return { success: true };
   } catch (error) {
-    console.error("Upsert University Error:", error);
     return { success: false, error: error.message };
   }
 }
 
-/**
- * 3. DELETE UNIVERSITY CONFIGURATION
- */
 export async function deleteUniversityEntry(id) {
   await connectDB();
   const session = await getServerSession(authOptions);
@@ -742,9 +739,14 @@ export async function deleteUniversityEntry(id) {
   try {
     const univ = await University.findById(id);
     if (univ) {
-        const slug = univ.slug;
-        await University.findByIdAndDelete(id);
-        revalidatePath(`/univ/${slug}`);
+      // 🚀 Delete images from R2 when the entry is removed
+      const logoKey = getR2KeyFromUrl(univ.logo);
+      const coverKey = getR2KeyFromUrl(univ.coverImage);
+      if (logoKey) await deleteFileFromR2(logoKey);
+      if (coverKey) await deleteFileFromR2(coverKey);
+
+      await University.findByIdAndDelete(id);
+      revalidatePath(`/univ/${univ.slug}`);
     }
     revalidatePath('/admin');
     return { success: true };

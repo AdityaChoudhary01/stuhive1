@@ -39,7 +39,6 @@ export default function UniversityManager() {
     fetchUnivs();
   }, []);
 
-  // 🚀 Image Optimizer (Resizes and converts to WebP locally)
   const optimizeImage = (file, maxWidth, maxHeight) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -51,7 +50,6 @@ export default function UniversityManager() {
           const canvas = document.createElement("canvas");
           let width = img.width;
           let height = img.height;
-
           if (width > height) {
             if (width > maxWidth) {
               height *= maxWidth / width;
@@ -63,21 +61,16 @@ export default function UniversityManager() {
               height = maxHeight;
             }
           }
-
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0, width, height);
-
-          canvas.toBlob((blob) => {
-            resolve(blob);
-          }, "image/webp", 0.8);
+          canvas.toBlob((blob) => resolve(blob), "image/webp", 0.8);
         };
       };
     });
   };
 
-  // 🚀 Hyper-Secure R2 Direct Upload Handler with Optimization
   const handleImageUpload = async (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -89,18 +82,20 @@ export default function UniversityManager() {
     setUploading((prev) => ({ ...prev, [type]: true }));
 
     try {
-      // 1. Optimize locally based on type
+      // 1. Optimize locally
       const maxWidth = type === "logo" ? 400 : 1200;
       const maxHeight = type === "logo" ? 400 : 600;
       const optimizedBlob = await optimizeImage(file, maxWidth, maxHeight);
+      
+      // 2. 🚀 PREVIEW FIX: Create a temporary local URL for instant preview
+      const localPreviewUrl = URL.createObjectURL(optimizedBlob);
 
-      // 2. Get Presigned URL from Server
+      // 3. Get Presigned URL
       const action = type === "logo" ? getUniversityLogoUploadUrlAction : getUniversityCoverUploadUrlAction;
       const { success, uploadUrl, fileKey, error } = await action("image/webp");
-
       if (!success) throw new Error(error);
 
-      // 3. Upload directly to Cloudflare R2
+      // 4. Upload directly to R2
       const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
         body: optimizedBlob,
@@ -109,7 +104,6 @@ export default function UniversityManager() {
 
       if (!uploadRes.ok) throw new Error("Cloudflare R2 upload failed");
 
-      // 4. Construct the public URL using your CDN domain
       const publicUrl = `https://cdn.stuhive.in/${fileKey}`;
 
       setFormData((prev) => ({
@@ -117,7 +111,7 @@ export default function UniversityManager() {
         [type === "logo" ? "logo" : "coverImage"]: publicUrl,
       }));
 
-      toast({ title: "Upload Success", description: `${type} optimized and ready.` });
+      toast({ title: "Upload Success", description: `${type} ready.` });
     } catch (error) {
       toast({ title: "Upload Failed", description: error.message, variant: "destructive" });
     } finally {
@@ -179,12 +173,16 @@ export default function UniversityManager() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Logo Preview Section */}
               <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-gray-400">Logo (Auto-WebP)</Label>
+                <Label className="text-[10px] uppercase font-bold text-gray-400">Logo</Label>
                 <div className="relative aspect-square rounded-2xl bg-black/40 border border-dashed border-white/10 overflow-hidden flex items-center justify-center group">
                   {formData.logo ? (
-                    <Image src={formData.logo} alt="Logo Preview" fill className="object-contain p-4" unoptimized />
+                    <img 
+                      src={formData.logo} 
+                      key={formData.logo} 
+                      alt="Logo Preview" 
+                      className="w-full h-full object-contain p-4 transition-opacity duration-300" 
+                    />
                   ) : <ImageIcon className="text-gray-600" />}
                   
                   <label className="absolute inset-0 cursor-pointer bg-cyan-500/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-black font-bold text-xs text-center px-2">
@@ -194,12 +192,16 @@ export default function UniversityManager() {
                 </div>
               </div>
 
-              {/* Cover Preview Section */}
               <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-gray-400">Cover (Auto-WebP)</Label>
+                <Label className="text-[10px] uppercase font-bold text-gray-400">Cover</Label>
                 <div className="relative aspect-square rounded-2xl bg-black/40 border border-dashed border-white/10 overflow-hidden flex items-center justify-center group">
                   {formData.coverImage ? (
-                    <Image src={formData.coverImage} alt="Cover Preview" fill className="object-cover" unoptimized />
+                    <img 
+                      src={formData.coverImage} 
+                      key={formData.coverImage}
+                      alt="Cover Preview" 
+                      className="w-full h-full object-cover transition-opacity duration-300" 
+                    />
                   ) : <ImageIcon className="text-gray-600" />}
                   
                   <label className="absolute inset-0 cursor-pointer bg-cyan-500/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-black font-bold text-xs text-center px-2">
@@ -229,7 +231,6 @@ export default function UniversityManager() {
         </form>
       </div>
 
-      {/* TABLE SECTION */}
       <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead className="bg-white/5 text-[10px] uppercase font-black tracking-widest text-gray-400">
@@ -246,7 +247,7 @@ export default function UniversityManager() {
               <tr key={u.slug} className="hover:bg-white/[0.02] transition-colors group">
                 <td className="px-6 py-4 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center overflow-hidden border border-white/10 shrink-0 relative">
-                    {u.logo ? <Image src={u.logo} alt={u.name} fill className="object-contain p-1" unoptimized /> : <School size={16} className={u.isVirtual ? "text-gray-700" : "text-cyan-400"} />}
+                    {u.logo ? <img src={u.logo} alt={u.name} className="w-full h-full object-contain p-1" /> : <School size={16} className={u.isVirtual ? "text-gray-700" : "text-cyan-400"} />}
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm font-bold text-white truncate">{u.name}</span>
@@ -263,7 +264,7 @@ export default function UniversityManager() {
                       {u.isVirtual ? "Setup" : "Edit"}
                     </Button>
                     {!u.isVirtual && (
-                      <Button variant="ghost" size="sm" onClick={async ()=>{ if(confirm("Reset to auto-generated?")){ await deleteUniversityEntry(u._id); fetchUnivs(); }}} className="h-8 w-8 p-0 hover:bg-red-500/20 text-red-400"><Trash2 size={14} /></Button>
+                      <Button variant="ghost" size="sm" onClick={async ()=>{ if(confirm("Reset hub? images will be deleted from R2 storage.")){ await deleteUniversityEntry(u._id); fetchUnivs(); }}} className="h-8 w-8 p-0 hover:bg-red-500/20 text-red-400"><Trash2 size={14} /></Button>
                     )}
                   </div>
                 </td>
