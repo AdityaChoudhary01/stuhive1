@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import UniversityHubClient from "@/components/university/UniversityHubClient";
 import { School, MapPin, Globe, BookOpen } from "lucide-react";
 import Image from "next/image";
+import { getServerSession } from "next-auth"; // 🚀 Added for session handling
+import { authOptions } from "@/lib/auth";     // 🚀 Added for session handling
 
-export const revalidate = 3600; // Edge cache for 1 hour
+export const revalidate = 0; // Edge cache for 1 hour
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.stuhive.in";
 
@@ -53,7 +55,10 @@ export async function generateMetadata({ params }) {
 
 export default async function UniversityPage({ params }) {
   const { slug } = await params;
-  const data = await getUniversityHubData(slug);
+  const [data, session] = await Promise.all([
+    getUniversityHubData(slug),
+    getServerSession(authOptions) // 🚀 Fetch session to enable Request Board functionality
+  ]);
 
   // Allow rendering if Admin has created a page (details exist), even if no notes yet
   if (!data.success || (data.notes.length === 0 && data.requests.length === 0 && !data.details)) {
@@ -123,7 +128,7 @@ export default async function UniversityPage({ params }) {
             fill 
             className="object-cover opacity-20 blur-[2px] mix-blend-screen" 
             priority 
-            unoptimized // 🚀 Matches blog detail logic for immediate R2 display
+            unoptimized 
           />
         )}
         <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-cyan-950/30 to-background pointer-events-none" />
@@ -141,8 +146,8 @@ export default async function UniversityPage({ params }) {
                     src={details.logo} 
                     alt={`${universityName} Logo`} 
                     fill 
-                    className="object-cover" // 🚀 Changed to object-cover to perfectly fill the circular frame regardless of aspect ratio
-                    unoptimized // 🚀 Ensures fresh logo renders correctly
+                    className="object-cover" 
+                    unoptimized 
                  />
              ) : (
                  <School className="w-10 h-10 text-cyan-400" aria-hidden="true" />
@@ -200,7 +205,11 @@ export default async function UniversityPage({ params }) {
         </header>
 
         {/* 🚀 INTERACTIVE HUB CLIENT */}
-        <UniversityHubClient data={data} slug={slug} />
+        <UniversityHubClient 
+            data={data} 
+            slug={slug} 
+            currentUser={session?.user ? { id: session.user.id, name: session.user.name } : null} 
+        />
 
       </div>
     </main>

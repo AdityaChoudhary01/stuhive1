@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { createRequest, fulfillRequest, getRequests } from "@/actions/request.actions";
+import { createRequest, fulfillRequest, getRequests, deleteRequest } from "@/actions/request.actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea"; 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"; 
 import { Badge } from "@/components/ui/badge"; 
-import { CheckCircle2, Clock, Plus, ArrowRight, Link as LinkIcon, Loader2, ChevronDown } from "lucide-react";
+import { CheckCircle2, Clock, Plus, ArrowRight, Link as LinkIcon, Loader2, ChevronDown, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -91,6 +91,24 @@ export default function RequestBoard({ initialRequests, currentUser, initialPage
     }
   };
 
+  // 🚀 DELETE HANDLER
+  const handleDeleteRequest = async (requestId) => {
+    if (!confirm("Are you sure you want to delete this request?")) return;
+    
+    try {
+      const res = await deleteRequest(requestId, currentUser.id);
+      if (res.success) {
+        setRequests(prev => prev.filter(r => r._id !== requestId));
+        toast({ title: "Request Deleted" });
+        router.refresh();
+      } else {
+        toast({ title: "Error", description: res.error, variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Something went wrong.", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="space-y-6 md:space-y-8">
         {/* Controls */}
@@ -155,6 +173,7 @@ export default function RequestBoard({ initialRequests, currentUser, initialPage
                     index={index}
                     currentUser={currentUser} 
                     onFulfill={handleFulfillSubmit} 
+                    onDelete={handleDeleteRequest}
                 />
             ))}
         </div>
@@ -200,10 +219,13 @@ export default function RequestBoard({ initialRequests, currentUser, initialPage
 }
 
 // Sub-Component
-function RequestCard({ req, currentUser, onFulfill, index }) {
+function RequestCard({ req, currentUser, onFulfill, onDelete, index }) {
     const isPending = req.status === 'pending';
     const [link, setLink] = useState("");
     const [isFulfillOpen, setIsFulfillOpen] = useState(false);
+
+    // 🚀 Check if currentUser is the owner
+    const isOwner = currentUser?.id === req.requester?._id || currentUser?.id === req.requester;
 
     const handleFulfillClick = async () => {
         const success = await onFulfill(req._id, link);
@@ -234,15 +256,30 @@ function RequestCard({ req, currentUser, onFulfill, index }) {
                         <Badge variant="outline" className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-white/60 bg-white/5 border-white/10 px-1.5 py-0.5">{req.university}</Badge>
                         <Badge variant="outline" className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-white/60 bg-white/5 border-white/10 px-1.5 py-0.5">{req.subject}</Badge>
                     </div>
-                    {isPending ? (
-                        <span className="flex items-center w-fit gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shrink-0">
-                            <Clock size={8} className="sm:w-2.5 sm:h-2.5" aria-hidden="true" /> Pending
-                        </span>
-                    ) : (
-                        <span className="flex items-center w-fit gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shrink-0" itemProp="answerCount" content="1">
-                            <CheckCircle2 size={8} className="sm:w-2.5 sm:h-2.5" aria-hidden="true" /> Fulfilled
-                        </span>
-                    )}
+                    
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* 🚀 Delete Button - only for Owner */}
+                        {isOwner && (
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => onDelete(req._id)}
+                                className="h-6 w-6 text-red-500/50 hover:text-red-500 hover:bg-red-500/10 rounded-full"
+                            >
+                                <Trash2 size={12} />
+                            </Button>
+                        )}
+
+                        {isPending ? (
+                            <span className="flex items-center w-fit gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shrink-0">
+                                <Clock size={8} className="sm:w-2.5 sm:h-2.5" aria-hidden="true" /> Pending
+                            </span>
+                        ) : (
+                            <span className="flex items-center w-fit gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shrink-0" itemProp="answerCount" content="1">
+                                <CheckCircle2 size={8} className="sm:w-2.5 sm:h-2.5" aria-hidden="true" /> Fulfilled
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 <div className="space-y-2 mb-6 flex-grow">
@@ -255,13 +292,12 @@ function RequestCard({ req, currentUser, onFulfill, index }) {
                 </div>
 
                 <footer className="mt-auto border-t border-white/5 pt-3 sm:pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                     {/* 🚀 SEO: Person Schema for Author */}
                      <div className="flex items-center gap-2 min-w-0" itemProp="author" itemScope itemType="https://schema.org/Person">
                         <Avatar className="h-5 w-5 sm:h-7 sm:w-7 border border-white/10 shrink-0">
                             <AvatarImage src={req.requester?.avatar} itemProp="image"/>
                             <AvatarFallback className="bg-white/10 text-[8px] sm:text-xs">{req.requester?.name?.charAt(0)}</AvatarFallback>
                         </Avatar>
-                        <span className="text-[10px] sm:text-xs font-bold text-gray-300 truncate" itemProp="name">{req.requester?.name || "Student"}</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-gray-300 truncate" itemProp="name">{isOwner ? "You" : (req.requester?.name || "Student")}</span>
                      </div>
 
                      {isPending ? (
@@ -278,15 +314,15 @@ function RequestCard({ req, currentUser, onFulfill, index }) {
                                          Have this material? Paste the StuHive link to your uploaded note below.
                                      </p>
                                      <Input 
-                                        placeholder="https://stuhive.in/notes/..." 
-                                        value={link}
-                                        onChange={(e) => setLink(e.target.value)}
-                                        className="bg-black/40 border-white/10 focus-visible:ring-orange-500"
+                                         placeholder="https://stuhive.in/notes/..." 
+                                         value={link}
+                                         onChange={(e) => setLink(e.target.value)}
+                                         className="bg-black/40 border-white/10 focus-visible:ring-orange-500"
                                      />
                                      <Button 
-                                        onClick={handleFulfillClick} 
-                                        disabled={!link.trim()}
-                                        className="w-full bg-green-600 hover:bg-green-500 text-white font-bold"
+                                         onClick={handleFulfillClick} 
+                                         disabled={!link.trim()}
+                                         className="w-full bg-green-600 hover:bg-green-500 text-white font-bold"
                                      >
                                          <CheckCircle2 className="mr-2" size={16} aria-hidden="true" /> Mark as Fulfilled
                                      </Button>
@@ -294,7 +330,6 @@ function RequestCard({ req, currentUser, onFulfill, index }) {
                              </DialogContent>
                          </Dialog>
                      ) : (
-                         // 🚀 FIXED: Now uses the SEO Slug from the populated fulfillmentNote!
                          <Link href={`/notes/${req.fulfillmentNote?.slug || req.fulfillmentNote?._id || '#'}`} title="View fulfilling document" className="shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-green-500 rounded-md w-full sm:w-auto">
                              <Button size="sm" variant="secondary" className="h-7 sm:h-8 w-full sm:w-auto px-2 sm:px-3 text-[8px] sm:text-[10px] font-black uppercase tracking-widest bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20">
                                  View Note <LinkIcon size={10} className="ml-1 sm:ml-1.5" aria-hidden="true" />

@@ -19,6 +19,12 @@ export async function createRequest(data, userId) {
     });
     
     revalidatePath("/requests");
+    // Also revalidate university hub if university is provided
+    if (data.university) {
+        const uniSlug = data.university.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        revalidatePath(`/univ/${uniSlug}`);
+    }
+
     return { success: true, request: JSON.parse(JSON.stringify(newRequest)) };
   } catch (error) {
     return { success: false, error: error.message };
@@ -28,7 +34,7 @@ export async function createRequest(data, userId) {
 /**
  * 2. GET ALL REQUESTS (With Pagination & Filters)
  */
-export async function getRequests({ page = 1, limit = 12, filter = "all" } = {}) {
+export async function getRequests({ page = 1, limit = 12, filter = "all", universityRegex = null } = {}) {
   await connectDB();
   try {
     const skip = (page - 1) * limit;
@@ -37,12 +43,24 @@ export async function getRequests({ page = 1, limit = 12, filter = "all" } = {})
     if (filter === "pending") query.status = "pending";
     if (filter === "fulfilled") query.status = "fulfilled";
 
+    // 🚀 Support for University Hub filtering
+    if (universityRegex) {
+        query.$or = [
+            { university: universityRegex },
+            { title: universityRegex }
+        ];
+    }
+
     const requests = await Request.find(query)
       .sort({ createdAt: -1 }) // Newest first
       .skip(skip)
       .limit(limit)
-      .populate("requester", "name avatar")
-      .populate("fulfillmentNote", "title slug") // 🚀 Already perfectly pulling the slug!
+      .populate("requester", "name avatar isVerifiedEducator") // 🚀 Added isVerifiedEducator
+      .populate({
+        path: "fulfillmentNote",
+        select: "title slug",
+        populate: { path: "user", select: "name isVerifiedEducator" } // 🚀 Populated nested user for blue tick check
+      })
       .lean();
 
     const total = await Request.countDocuments(query);
@@ -54,26 +72,24 @@ export async function getRequests({ page = 1, limit = 12, filter = "all" } = {})
     };
   } catch (error) {
     console.error("Error fetching requests:", error);
-    return { requests: [], totalCount: 0 };
+    return { requests: [], totalCount: 0, totalPages: 0 };
   }
 }
 
 /**
  * 3. FULFILL A REQUEST
- * Links an existing Note (by ID or Slug) to the Request and notifies the requester
  */
 export async function fulfillRequest(requestId, noteUrlOrId, userId) {
   await connectDB();
   try {
-    // 🚀 Extract identifier from URL if user pastes a link like "stuhive.in/notes/data-structures-123"
+    // 🚀 Extract identifier from URL
     let identifier = noteUrlOrId.trim();
     if (noteUrlOrId.includes("/notes/")) {
         const parts = noteUrlOrId.split("/notes/");
-        // Get whatever comes after /notes/, remove query params (?), and remove trailing slashes
         identifier = parts[1].split("?")[0].replace(/\/$/, ""); 
     }
 
-    // 🚀 Smart Search: Check if the identifier is a valid MongoDB ID or a Slug
+    // 🚀 Smart Search
     let query = { slug: identifier };
     if (mongoose.Types.ObjectId.isValid(identifier)) {
         query = { $or: [{ _id: identifier }, { slug: identifier }] };
@@ -89,27 +105,62 @@ export async function fulfillRequest(requestId, noteUrlOrId, userId) {
       {
         status: "fulfilled",
         fulfilledBy: userId,
-        fulfillmentNote: note._id, // Keep the actual reference ID for the database
+        fulfillmentNote: note._id,
       },
       { new: true }
     );
 
-    // 3. 🚀 TRIGGER NOTIFICATION TO THE ORIGINAL REQUESTER
-    // (Check to ensure we don't notify a user if they somehow fulfill their own request)
+    // 3. 🚀 TRIGGER NOTIFICATION
     if (request && request.requester.toString() !== userId.toString()) {
       await createNotification({
         recipientId: request.requester,
         actorId: userId,
         type: 'REQUEST_FULFILLED',
         message: `Good news! Your community request "${request.title}" has been fulfilled!`,
-        link: `/notes/${note.slug || note._id}` // 🚀 Clicking the notification uses the new SEO slug
+        link: `/notes/${note.slug || note._id}`
       });
     }
 
     revalidatePath("/requests");
+    
+    // Revalidate university hub cache if applicable
+    if (request.university) {
+        const uniSlug = request.university.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        revalidatePath(`/univ/${uniSlug}`);
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Fulfill Request Error:", error);
     return { success: false, error: "An error occurred while linking the note." };
+  }
+}
+
+/**
+ * 4. DELETE A REQUEST
+ * Only the requester or an admin can delete.
+ */
+export async function deleteRequest(requestId, userId) {
+  await connectDB();
+  try {
+    const request = await Request.findById(requestId);
+    if (!request) return { success: false, error: "Request not found" };
+
+    // Authorization check: User must be owner (Admin role check can be added if needed)
+    if (request.requester.toString() !== userId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    await Request.findByIdAndDelete(requestId);
+
+    revalidatePath("/requests");
+    if (request.university) {
+      const uniSlug = request.university.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+      revalidatePath(`/univ/${uniSlug}`);
+    }
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 }
