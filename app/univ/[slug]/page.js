@@ -41,6 +41,12 @@ export async function generateMetadata({ params }) {
       siteName: "StuHive",
       images: [{ url: ogImage, width: 1200, height: 630, alt: universityName }],
       type: "website",
+    },
+    twitter: {
+        card: "summary_large_image",
+        title,
+        description,
+        images: [ogImage],
     }
   };
 }
@@ -76,7 +82,6 @@ export default async function UniversityPage({ params }) {
       "description": details?.description || `Study materials for ${universityName}`,
       "address": details?.location ? { "@type": "PostalAddress", "addressLocality": details.location } : undefined
     },
-    // 🚀 SEO GOLD: Auto-generated FAQ Schema ensures rich snippets in Google Search
     {
       "@context": "https://schema.org",
       "@type": "FAQPage",
@@ -114,10 +119,11 @@ export default async function UniversityPage({ params }) {
         {details?.coverImage && (
           <Image 
             src={details.coverImage} 
-            alt="Cover" 
+            alt={`Cover banner for ${universityName}`} 
             fill 
             className="object-cover opacity-20 blur-[2px] mix-blend-screen" 
             priority 
+            unoptimized // 🚀 Matches blog detail logic for immediate R2 display
           />
         )}
         <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-cyan-950/30 to-background pointer-events-none" />
@@ -131,7 +137,13 @@ export default async function UniversityPage({ params }) {
           
           <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(34,211,238,0.15)] overflow-hidden relative">
              {details?.logo ? (
-                 <Image src={details.logo} alt={`${universityName} Logo`} fill className="object-cover p-2" />
+                 <Image 
+                    src={details.logo} 
+                    alt={`${universityName} Logo`} 
+                    fill 
+                    className="object-cover p-2" 
+                    unoptimized // 🚀 Ensures fresh logo renders correctly
+                 />
              ) : (
                  <School className="w-10 h-10 text-cyan-400" aria-hidden="true" />
              )}
@@ -165,7 +177,7 @@ export default async function UniversityPage({ params }) {
             )}
           </div>
 
-          {/* 🚀 SEO FALLBACK TEXT: Gives Google rich content to crawl for this specific hub */}
+          {/* 🚀 SEO DESCRIPTION */}
           <div className="max-w-3xl mx-auto text-sm sm:text-base text-gray-300 leading-relaxed mb-10 text-center">
              {details?.description ? (
                  <p itemProp="description">{details.description}</p>

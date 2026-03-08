@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { School, Trash2, Edit3, Loader2, Upload, Image as ImageIcon, Plus } from "lucide-react";
+import { School, Trash2, Edit3, Loader2, Upload, Image as ImageIcon, Plus, X } from "lucide-react";
+import Image from "next/image";
 
 export default function UniversityManager() {
   const [univs, setUnivs] = useState([]);
@@ -38,13 +39,13 @@ export default function UniversityManager() {
     fetchUnivs();
   }, []);
 
-  // 🚀 Image Optimizer (Same logic as Avatar/Blog Cover)
+  // 🚀 Image Optimizer (Resizes and converts to WebP locally)
   const optimizeImage = (file, maxWidth, maxHeight) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (event) => {
-        const img = new Image();
+        const img = new window.Image();
         img.src = event.target.result;
         img.onload = () => {
           const canvas = document.createElement("canvas");
@@ -89,7 +90,6 @@ export default function UniversityManager() {
 
     try {
       // 1. Optimize locally based on type
-      // Logo: 400x400 | Cover: 1200x600
       const maxWidth = type === "logo" ? 400 : 1200;
       const maxHeight = type === "logo" ? 400 : 600;
       const optimizedBlob = await optimizeImage(file, maxWidth, maxHeight);
@@ -109,8 +109,8 @@ export default function UniversityManager() {
 
       if (!uploadRes.ok) throw new Error("Cloudflare R2 upload failed");
 
-      // 4. Construct the public URL
-      const publicUrl = `https://r2.stuhive.in/${fileKey}`;
+      // 4. Construct the public URL using your CDN domain
+      const publicUrl = `https://cdn.stuhive.in/${fileKey}`;
 
       setFormData((prev) => ({
         ...prev,
@@ -156,7 +156,6 @@ export default function UniversityManager() {
 
   return (
     <div className="space-y-8">
-      {/* PROFESSIONALIZATION FORM */}
       <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md">
         <h3 className="text-xl font-black text-white mb-6 flex items-center gap-2">
           <School className="text-cyan-400" /> {isEditing ? "Edit University Details" : "Create Professional Hub"}
@@ -180,31 +179,31 @@ export default function UniversityManager() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Logo Upload */}
+              {/* Logo Preview Section */}
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase font-bold text-gray-400">Logo (Auto-WebP)</Label>
-                <div className="relative group aspect-square rounded-2xl bg-black/40 border border-dashed border-white/10 flex flex-col items-center justify-center overflow-hidden">
+                <div className="relative aspect-square rounded-2xl bg-black/40 border border-dashed border-white/10 overflow-hidden flex items-center justify-center group">
                   {formData.logo ? (
-                    <img src={formData.logo} className="w-full h-full object-contain p-4" alt="Logo" />
+                    <Image src={formData.logo} alt="Logo Preview" fill className="object-contain p-4" unoptimized />
                   ) : <ImageIcon className="text-gray-600" />}
                   
                   <label className="absolute inset-0 cursor-pointer bg-cyan-500/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-black font-bold text-xs text-center px-2">
-                    {uploading.logo ? <Loader2 className="animate-spin" /> : <><Upload size={14} /> Upload Logo</>}
+                    {uploading.logo ? <Loader2 className="animate-spin" /> : <><Upload size={14} /> Change Logo</>}
                     <input type="file" className="hidden" accept="image/*" disabled={uploading.logo} onChange={(e) => handleImageUpload(e, "logo")} />
                   </label>
                 </div>
               </div>
 
-              {/* Cover Upload */}
+              {/* Cover Preview Section */}
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase font-bold text-gray-400">Cover (Auto-WebP)</Label>
-                <div className="relative group aspect-square rounded-2xl bg-black/40 border border-dashed border-white/10 flex flex-col items-center justify-center overflow-hidden">
+                <div className="relative aspect-square rounded-2xl bg-black/40 border border-dashed border-white/10 overflow-hidden flex items-center justify-center group">
                   {formData.coverImage ? (
-                    <img src={formData.coverImage} className="w-full h-full object-cover" alt="Cover" />
+                    <Image src={formData.coverImage} alt="Cover Preview" fill className="object-cover" unoptimized />
                   ) : <ImageIcon className="text-gray-600" />}
                   
                   <label className="absolute inset-0 cursor-pointer bg-cyan-500/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-black font-bold text-xs text-center px-2">
-                    {uploading.cover ? <Loader2 className="animate-spin" /> : <><Upload size={14} /> Upload Cover</>}
+                    {uploading.cover ? <Loader2 className="animate-spin" /> : <><Upload size={14} /> Change Cover</>}
                     <input type="file" className="hidden" accept="image/*" disabled={uploading.cover} onChange={(e) => handleImageUpload(e, "cover")} />
                   </label>
                 </div>
@@ -217,7 +216,7 @@ export default function UniversityManager() {
             <Input placeholder="SEO Meta Description" value={formData.metaDescription} onChange={(e)=>setFormData({...formData, metaDescription: e.target.value})} className="bg-black/20 border-white/10" />
           </div>
 
-          <Textarea placeholder="Rich description for the Hub page (Unique SEO content)..." value={formData.description} onChange={(e)=>setFormData({...formData, description: e.target.value})} className="bg-black/20 border-white/10 min-h-[120px]" />
+          <Textarea placeholder="Rich description for the Hub page..." value={formData.description} onChange={(e)=>setFormData({...formData, description: e.target.value})} className="bg-black/20 border-white/10 min-h-[120px]" />
 
           <div className="flex gap-3">
              {isEditing && (
@@ -230,7 +229,7 @@ export default function UniversityManager() {
         </form>
       </div>
 
-      {/* LIST OF UNIVERSITIES */}
+      {/* TABLE SECTION */}
       <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead className="bg-white/5 text-[10px] uppercase font-black tracking-widest text-gray-400">
@@ -246,8 +245,8 @@ export default function UniversityManager() {
             ) : univs.map((u) => (
               <tr key={u.slug} className="hover:bg-white/[0.02] transition-colors group">
                 <td className="px-6 py-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center overflow-hidden border border-white/10 shrink-0">
-                    {u.logo ? <img src={u.logo} className="w-full h-full object-contain p-1" /> : <School size={16} className={u.isVirtual ? "text-gray-700" : "text-cyan-400"} />}
+                  <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center overflow-hidden border border-white/10 shrink-0 relative">
+                    {u.logo ? <Image src={u.logo} alt={u.name} fill className="object-contain p-1" unoptimized /> : <School size={16} className={u.isVirtual ? "text-gray-700" : "text-cyan-400"} />}
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm font-bold text-white truncate">{u.name}</span>
@@ -259,17 +258,12 @@ export default function UniversityManager() {
                 <td className="px-6 py-4 text-sm text-gray-400">{u.location || "—"}</td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={()=>handleEdit(u)} 
-                      className={`h-8 px-3 gap-2 border ${u.isVirtual ? 'border-amber-500/20 text-amber-500 hover:bg-amber-500/10' : 'border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/10'}`}
-                    >
+                    <Button variant="ghost" size="sm" onClick={()=>handleEdit(u)} className={`h-8 px-3 gap-2 border ${u.isVirtual ? 'border-amber-500/20 text-amber-500 hover:bg-amber-500/10' : 'border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/10'}`}>
                       {u.isVirtual ? <Plus size={14} /> : <Edit3 size={14} />}
                       {u.isVirtual ? "Setup" : "Edit"}
                     </Button>
                     {!u.isVirtual && (
-                      <Button variant="ghost" size="sm" onClick={async ()=>{ if(confirm("Reset to auto-generated? (Removes SEO info)")){ await deleteUniversityEntry(u._id); fetchUnivs(); }}} className="h-8 w-8 p-0 hover:bg-red-500/20 text-red-400"><Trash2 size={14} /></Button>
+                      <Button variant="ghost" size="sm" onClick={async ()=>{ if(confirm("Reset to auto-generated?")){ await deleteUniversityEntry(u._id); fetchUnivs(); }}} className="h-8 w-8 p-0 hover:bg-red-500/20 text-red-400"><Trash2 size={14} /></Button>
                     )}
                   </div>
                 </td>
