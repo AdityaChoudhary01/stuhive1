@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, User, BookOpen, Share2, Layers, Trophy, School, Lightbulb, CheckCircle2 } from "lucide-react";
+import { Calendar, User, BookOpen, Share2, Layers, Trophy, School, Lightbulb, CheckCircle2, BadgeCheck } from "lucide-react"; // 🚀 Added BadgeCheck
 import { format } from "date-fns";
 import Link from "next/link";
 import ClonePlanButton from "@/components/planner/ClonePlanButton";
@@ -87,7 +87,13 @@ export default async function RoadmapPage({ params }) {
           <div className="flex flex-wrap items-center justify-center gap-4">
             <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full backdrop-blur-md">
               <User size={14} className="text-purple-400" />
-              <span className="text-sm font-bold text-gray-300">By {plan.user?.name || "Anonymous"}</span>
+              {/* 🚀 VERIFIED CREATOR BADGE */}
+              <span className="flex items-center gap-1.5 text-sm font-bold text-gray-300">
+                By {plan.user?.name || "Anonymous"}
+                {plan.user?.isVerifiedEducator && (
+                    <BadgeCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" title="Verified Expert Educator" />
+                )}
+              </span>
             </div>
             <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full backdrop-blur-md">
               <Calendar size={14} className="text-cyan-400" />

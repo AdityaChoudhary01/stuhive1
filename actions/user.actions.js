@@ -17,8 +17,9 @@ export async function getUserProfile(userId) {
   await connectDB();
   try {
     const user = await User.findById(userId)
-      .populate('followers', 'name avatar')
-      .populate('following', 'name avatar')
+      // 🚀 THE FIX: Added isVerifiedEducator to follower/following logic
+      .populate('followers', 'name avatar isVerifiedEducator')
+      .populate('following', 'name avatar isVerifiedEducator')
       .select('-password')
       .lean();
 
@@ -42,7 +43,8 @@ export async function getUserNotes(userId, page = 1, limit = 10) {
       .sort({ uploadDate: -1 })
       .skip(skip)
       .limit(limit)
-      .populate('user', 'name avatar') 
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate('user', 'name avatar isVerifiedEducator') 
       .lean();
 
     const total = await Note.countDocuments({ user: userId });
@@ -132,7 +134,8 @@ export async function getSavedNotes(userId, page = 1, limit = 10) {
     const user = await User.findById(userId).populate({
       path: 'savedNotes',
       options: { sort: { uploadDate: -1 }, skip: (page - 1) * limit, limit: limit },
-      populate: { path: 'user', select: 'name avatar role' }
+      // 🚀 THE FIX: Added isVerifiedEducator
+      populate: { path: 'user', select: 'name avatar role isVerifiedEducator' }
     }).lean();
 
     if (!user || !user.savedNotes) return { notes: [], total: 0 };
@@ -186,7 +189,8 @@ export async function getFollowingUsers(userId) {
   await connectDB();
   try {
     const user = await User.findById(userId)
-      .populate('following', 'name avatar role bio') // Fetch details of followed users
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate('following', 'name avatar role bio isVerifiedEducator') // Fetch details of followed users
       .select('following')
       .lean();
 
@@ -272,13 +276,15 @@ export async function getUserFeed(userId) {
     const notes = await Note.find({ user: { $in: user.following } })
       .sort({ uploadDate: -1 })
       .limit(20)
-      .populate('user', 'name avatar role')
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate('user', 'name avatar role isVerifiedEducator')
       .lean();
 
     const blogs = await Blog.find({ author: { $in: user.following } })
       .sort({ createdAt: -1 })
       .limit(10)
-      .populate('author', 'name avatar role')
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate('author', 'name avatar role isVerifiedEducator')
       .lean();
 
     const feed = [
@@ -356,7 +362,8 @@ export async function getPurchasedNotes() {
         path: 'purchasedNotes',
         populate: { 
             path: 'user', 
-            select: 'name avatar' // We need the author's details for the NoteCard
+            // 🚀 THE FIX: Added isVerifiedEducator
+            select: 'name avatar isVerifiedEducator' // We need the author's details for the NoteCard
         }
       })
       .lean();

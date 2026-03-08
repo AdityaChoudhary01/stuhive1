@@ -5,6 +5,9 @@ import { authOptions } from "@/lib/auth";
 import crypto from "crypto";
 import { generateUploadUrl } from "@/lib/r2"; // ✅ Your R2 helper
 
+/**
+ * 1. GET URL FOR NOTES, THUMBNAILS, AND PREVIEWS
+ */
 export async function getUploadUrl(fileName, fileType, requestThumbnail = false, requestPreview = false) {
   try {
     const session = await getServerSession(authOptions);
@@ -32,7 +35,7 @@ export async function getUploadUrl(fileName, fileType, requestThumbnail = false,
         thumbUrl = await generateUploadUrl(thumbKey, "image/webp");
     }
 
-    // 🚀 NEW: Generate R2 URL for the Secure 3-Page Preview PDF
+    // 🚀 Generate R2 URL for the Secure 3-Page Preview PDF
     let previewUploadUrl = null;
     let previewKey = null;
 
@@ -48,8 +51,8 @@ export async function getUploadUrl(fileName, fileType, requestThumbnail = false,
         fileKey,
         thumbUrl,   
         thumbKey,
-        previewUploadUrl, // 🚀 Return preview URL to frontend
-        previewKey        // 🚀 Return preview Key to save in DB
+        previewUploadUrl, 
+        previewKey        
     };
 
   } catch (error) {
@@ -98,5 +101,43 @@ export async function getBlogCoverUploadUrlAction(fileType = "image/webp") {
   } catch (error) {
     console.error("R2 Blog Cover URL Error:", error);
     return { error: "Failed to generate blog cover upload link" };
+  }
+}
+
+/**
+ * 🚀 4. GET URL FOR UNIVERSITY LOGO UPLOADS
+ */
+export async function getUniversityLogoUploadUrlAction(fileType = "image/webp") {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== 'admin') return { error: "Unauthorized" };
+
+    const timestamp = Date.now();
+    const fileKey = `universities/logos/${timestamp}-logo.webp`;
+    const uploadUrl = await generateUploadUrl(fileKey, fileType);
+
+    return { success: true, uploadUrl, fileKey };
+  } catch (error) {
+    console.error("R2 University Logo URL Error:", error);
+    return { error: "Failed to generate university logo link" };
+  }
+}
+
+/**
+ * 🚀 5. GET URL FOR UNIVERSITY COVER UPLOADS
+ */
+export async function getUniversityCoverUploadUrlAction(fileType = "image/webp") {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== 'admin') return { error: "Unauthorized" };
+
+    const timestamp = Date.now();
+    const fileKey = `universities/covers/${timestamp}-cover.webp`;
+    const uploadUrl = await generateUploadUrl(fileKey, fileType);
+
+    return { success: true, uploadUrl, fileKey };
+  } catch (error) {
+    console.error("R2 University Cover URL Error:", error);
+    return { error: "Failed to generate university cover link" };
   }
 }

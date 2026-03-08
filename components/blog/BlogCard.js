@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, ArrowRight, Star, Eye, ShieldCheck } from "lucide-react";
+import { Calendar, Clock, ArrowRight, Star, Eye, ShieldCheck, BadgeCheck } from "lucide-react"; // 🚀 Added BadgeCheck
 import { formatDate } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // 🚀 IMPORTED: Planner Button
@@ -29,7 +29,7 @@ export default function BlogCard({ blog, priority = false }) {
       "@type": "Person",
       name: blog.author?.name || "StuHive Contributor",
       url: authorProfileUrl,
-      jobTitle: isAdmin ? "Admin" : "Contributor",
+      jobTitle: blog.author?.isVerifiedEducator ? "Verified Expert Educator" : (isAdmin ? "Admin" : "Contributor"), // 🚀 SEO update
     },
     publisher: {
       "@type": "Organization",
@@ -178,9 +178,15 @@ export default function BlogCard({ blog, priority = false }) {
                   </div>
 
                   <div className="flex flex-col">
-                    <span className="text-[11px] font-extrabold text-gray-200 truncate max-w-[120px]" itemProp="name">
-                      {blog.author?.name || "StuHive Contributor"}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-extrabold text-gray-200 truncate max-w-[120px]" itemProp="name">
+                          {blog.author?.name || "StuHive Contributor"}
+                        </span>
+                        {/* 🚀 VERIFIED EDUCATOR BADGE */}
+                        {blog.author?.isVerifiedEducator && (
+                            <BadgeCheck className="w-3 h-3 text-blue-400 shrink-0" title="Verified Expert Educator" />
+                        )}
+                    </div>
                     {isAdmin ? (
                       <span className="text-[8px] uppercase tracking-widest text-emerald-400 font-black mt-0.5" itemProp="jobTitle">
                         Admin

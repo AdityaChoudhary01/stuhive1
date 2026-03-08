@@ -14,9 +14,9 @@ import {
   FaUserCheck, 
   FaUniversity, 
   FaEnvelope, 
-  FaFire // 🚀 FIXED: Changed FaFlame to FaFire
+  FaFire
 } from 'react-icons/fa';
-import { ChevronDown } from "lucide-react"; 
+import { ChevronDown, BadgeCheck } from "lucide-react"; // 🚀 Added BadgeCheck
 import { Button } from "@/components/ui/button";
 import NoteCard from "@/components/notes/NoteCard";
 import BlogCard from "@/components/blog/BlogCard"; 
@@ -45,13 +45,19 @@ const UserList = ({ users, emptyMessage }) => {
             <div className="space-y-4">
                 {users.map((user) => (
                     <Link href={`/profile/${user._id}`} key={user._id}>
-                        <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/20 transition-colors cursor-pointer border border-transparent hover:border-border">
+                        <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/20 transition-colors cursor-pointer border border-transparent hover:border-border group">
                             <Avatar className="h-10 w-10 border shadow-sm">
                                 <AvatarImage src={user.avatar} referrerPolicy="no-referrer" />
                                 <AvatarFallback className="font-black text-xs uppercase">{user.name?.charAt(0)}</AvatarFallback>
                             </Avatar>
-                            <div className="flex flex-col">
-                                <span className="font-semibold text-sm leading-tight text-foreground">{user.name}</span>
+                            <div className="flex flex-col min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="font-semibold text-sm leading-tight text-foreground truncate">{user.name}</span>
+                                    {/* 🚀 VERIFIED BADGE IN FOLLOWER LISTS */}
+                                    {user.isVerifiedEducator && (
+                                        <BadgeCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" title="Verified Educator" />
+                                    )}
+                                </div>
                                 {user.role === 'admin' && <span className="text-[10px] text-primary font-bold uppercase mt-0.5">Admin</span>}
                             </div>
                         </div>
@@ -163,10 +169,20 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4 sm:gap-6">
                         <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-3 justify-center md:justify-start">
-                                <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter text-white" itemProp="name">{profile.name}</h2>
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter text-white" itemProp="name">{profile.name}</h2>
+                                    {/* 🚀 VERIFIED EDUCATOR BADGE */}
+                                    {profile.isVerifiedEducator && (
+                                        <BadgeCheck className="w-8 h-8 md:w-10 md:h-10 text-blue-400 drop-shadow-[0_0_10px_rgba(96,165,250,0.8)]" title="Verified Expert Educator" />
+                                    )}
+                                </div>
                                 <RoleBadge role={profile.role} />
                             </div>
-                            <p className="text-cyan-400 text-xs sm:text-sm font-black uppercase tracking-[0.2em]" itemProp="jobTitle">Verified Contributor</p>
+                            
+                            {/* 🚀 UPDATE JOB TITLE IF VERIFIED */}
+                            <p className={`${profile.isVerifiedEducator ? 'text-blue-400' : 'text-cyan-400'} text-xs sm:text-sm font-black uppercase tracking-[0.2em]`} itemProp="jobTitle">
+                                {profile.isVerifiedEducator ? "Verified Expert Educator" : "Academic Contributor"}
+                            </p>
                         </div>
 
                         {!isOwnProfile && (
@@ -191,7 +207,6 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
                                 <FaStar className="animate-pulse" /> StuHive Star
                              </Badge>
                         )}
-                        {/* 🚀 FIXED: Changed FaFlame to FaFire */}
                         {isConsistent && (
                           <Badge variant="outline" className="gap-2 border-orange-500/40 text-orange-400 bg-orange-500/10 px-4 py-1 font-black uppercase tracking-tighter shadow-[0_0_15px_rgba(249,115,22,0.2)] animate-pulse">
                              <FaFire className="text-orange-500" /> Consistent Learner

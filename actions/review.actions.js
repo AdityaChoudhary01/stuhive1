@@ -100,7 +100,8 @@ export async function addReview({ noteId, rating, comment, userId, parentReviewI
     revalidatePath(`/notes/${note.slug || noteId}`);
 
     // 6. Fetch and serialize the new reviews so the frontend can update instantly without a refresh
-    const updatedNote = await Note.findById(noteId).populate("reviews.user", "name avatar").lean();
+    // 🚀 THE FIX: Added isVerifiedEducator to populate
+    const updatedNote = await Note.findById(noteId).populate("reviews.user", "name avatar isVerifiedEducator").lean();
     
     const safeReviews = updatedNote.reviews.map(r => ({
        ...r,

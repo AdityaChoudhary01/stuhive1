@@ -24,7 +24,8 @@ export async function performGlobalSearch(query) {
       })
       // 🚀 FIXED: Added 'slug' to the select list so links use SEO URLs
       .select('title slug subject course fileType thumbnailKey fileKey rating numReviews uploadDate viewCount downloadCount')
-      .populate('user', 'name avatar role')
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate('user', 'name avatar role isVerifiedEducator')
       .limit(6)
       .lean(),
 
@@ -33,7 +34,8 @@ export async function performGlobalSearch(query) {
         $or: [{ title: searchRegex }, { summary: searchRegex }, { tags: searchRegex }]
       })
       .select('title slug summary coverImage tags rating numReviews createdAt viewCount readTime')
-      .populate('author', 'name avatar role')
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate('author', 'name avatar role isVerifiedEducator')
       .limit(6)
       .lean(),
 
@@ -41,7 +43,8 @@ export async function performGlobalSearch(query) {
       User.find({
         $or: [{ name: searchRegex }, { role: searchRegex }] 
       })
-      .select('name avatar role noteCount blogCount')
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .select('name avatar role noteCount blogCount isVerifiedEducator')
       .limit(6)
       .lean()
     ]);

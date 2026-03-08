@@ -107,10 +107,10 @@ export default async function BlogDetailPage({ params }) {
 
   const wordCount = blog.content?.split(/\s+/).length || 0;
   const readTime = blog.readTime || Math.ceil(wordCount / 200) || 3;
-  const totalReviews = blog.reviews?.length || 0;
-  const averageRating = totalReviews > 0
-    ? (blog.reviews.reduce((acc, review) => acc + (review.rating || 0), 0) / totalReviews).toFixed(1)
-    : 0;
+
+  // 🚀 FIXED: Rely entirely on the backend's pre-calculated, accurate database fields
+  const totalReviews = blog.numReviews || 0;
+  const averageRating = (blog.rating || 0).toFixed(1);
 
   // 🚀 2. DEEP DUAL JSON-LD INJECTION (Breadcrumb + Enriched BlogPosting)
   const breadcrumbSchema = {

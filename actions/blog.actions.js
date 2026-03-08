@@ -41,7 +41,8 @@ export const getBlogs = cache(async ({ page = 1, limit = 9, search = "", tag = "
 
     const blogs = await Blog.find(query)
       .select("-content -reviews") // 🚀 MASSIVE SPEED BOOST
-      .populate('author', 'name avatar role email')
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate('author', 'name avatar role email isVerifiedEducator')
       // 🚀 FIXED: Sorts by Featured status first, then by newest date
       .sort({ isFeatured: -1, createdAt: -1 }) 
       .skip(skip)
@@ -85,10 +86,11 @@ export const getBlogBySlug = cache(async (slug) => {
  await connectDB();
  try {
    const blog = await Blog.findOne({ slug })
-     .populate('author', 'name avatar role email bio')
+     // 🚀 THE FIX: Added isVerifiedEducator
+     .populate('author', 'name avatar role email bio isVerifiedEducator')
      .populate({
        path: 'reviews.user',
-       select: 'name avatar role email'
+       select: 'name avatar role email isVerifiedEducator' // 🚀 Added here too
      })
      .lean(); // 🚀 LEAN: Prevents Mongoose serialization bottleneck
 
@@ -328,10 +330,15 @@ export async function addBlogReview(blogId, userId, rating, comment, parentRevie
 
     blog.reviews.push(newReview);
 
-    const topLevelReviews = blog.reviews.filter(r => !r.parentReviewId);
-    const totalRating = topLevelReviews.reduce((acc, curr) => acc + curr.rating, 0);
-    blog.rating = topLevelReviews.length > 0 ? totalRating / topLevelReviews.length : 0;
-    blog.numReviews = topLevelReviews.length;
+    // 🚀 THE FIX: Calculate rating and numReviews based ONLY on top-level reviews
+    const mainReviews = blog.reviews.filter(r => !r.parentReviewId);
+    blog.numReviews = mainReviews.length;
+    
+    if (mainReviews.length > 0) {
+      blog.rating = mainReviews.reduce((acc, item) => item.rating + acc, 0) / mainReviews.length;
+    } else {
+      blog.rating = 0;
+    }
 
     await blog.save();
 
@@ -383,7 +390,7 @@ export async function addBlogReview(blogId, userId, rating, comment, parentRevie
       }
     }
 
-    const updatedBlog = await Blog.findById(blogId).populate("reviews.user", "name avatar").lean();
+    const updatedBlog = await Blog.findById(blogId).populate("reviews.user", "name avatar isVerifiedEducator").lean();
     
     const safeReviews = updatedBlog.reviews.map(r => ({
       ...r,
@@ -414,14 +421,19 @@ export async function deleteBlogReview(blogId, reviewId) {
       r => r._id.toString() !== reviewId && r.parentReviewId?.toString() !== reviewId
     );
 
-    const topLevelReviews = blog.reviews.filter(r => !r.parentReviewId);
-    const totalRating = topLevelReviews.reduce((acc, curr) => acc + curr.rating, 0);
-    blog.rating = topLevelReviews.length > 0 ? totalRating / topLevelReviews.length : 0;
-    blog.numReviews = topLevelReviews.length;
+    // 🚀 THE FIX: Calculate rating and numReviews based ONLY on top-level reviews
+    const mainReviews = blog.reviews.filter(r => !r.parentReviewId);
+    blog.numReviews = mainReviews.length;
+    
+    if (mainReviews.length > 0) {
+      blog.rating = mainReviews.reduce((acc, item) => item.rating + acc, 0) / mainReviews.length;
+    } else {
+      blog.rating = 0;
+    }
 
     await blog.save();
 
-    const updatedBlog = await Blog.findById(blogId).populate("reviews.user", "name avatar").lean();
+    const updatedBlog = await Blog.findById(blogId).populate("reviews.user", "name avatar isVerifiedEducator").lean();
     const safeReviews = updatedBlog.reviews.map(r => ({
       ...r,
       _id: r._id.toString(),
@@ -446,7 +458,7 @@ export const getRelatedBlogs = cache(async (blogId) => {
   try {
     const relatedBlogs = await Blog.find({ _id: { $ne: blogId } })
       .select('title summary slug createdAt author rating numReviews isFeatured coverImage viewCount tags readTime')
-      .populate('author', 'name avatar role email')
+      .populate('author', 'name avatar role email isVerifiedEducator')
       .sort({ createdAt: -1 })
       .limit(3)
       .lean();

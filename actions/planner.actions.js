@@ -185,7 +185,8 @@ export async function getStudyPlanBySlug(slug) {
   await connectDB();
   try {
     const plan = await StudyEvent.findOne({ slug, isPublic: true })
-      .populate("user", "name avatar")
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate("user", "name avatar isVerifiedEducator")
       .lean();
 
     if (!plan) return { success: false, plan: null };
@@ -286,7 +287,8 @@ export async function getPublicStudyPlans(searchQuery = "") {
     }
 
     const plans = await StudyEvent.find(query)
-      .populate("user", "name avatar")
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate("user", "name avatar isVerifiedEducator")
       .sort({ clones: -1, createdAt: -1 })
       .lean();
 

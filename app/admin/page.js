@@ -5,7 +5,8 @@ import {
   getAllNotes, 
   getAllBlogs, 
   getAllOpportunities,
-  getPendingPayouts // 🚀 IMPORTED NEW FUNCTION
+  getPendingPayouts,
+  getAllUniversities 
 } from "@/actions/admin.actions"; 
 import AdminTabs from "@/components/admin/AdminTabs";
 import StatsCard from "@/components/admin/StatsCards"; 
@@ -17,27 +18,35 @@ export const metadata = {
 };
 
 export default async function AdminDashboardPage() {
-  // 🚀 Fetch all data in parallel, including pending payouts
-  const [stats, usersRes, notesRes, blogsRes, analyticsData, opportunitiesRes, pendingPayouts] = await Promise.all([
+  // 🚀 Fetch all data in parallel
+  const [
+    stats, 
+    usersRes, 
+    notesRes, 
+    blogsRes, 
+    analyticsData, 
+    opportunitiesRes, 
+    pendingPayouts,
+    universitiesRes 
+  ] = await Promise.all([
     getAdminStats(),
     getAllUsers(1, 20), 
     getAllNotes(1, 20), 
     getAllBlogs(1, 20),
     getAdminDashboardData(),
     getAllOpportunities(1, 50),
-    getPendingPayouts() // 🚀 FETCH DATA
+    getPendingPayouts(),
+    getAllUniversities() 
   ]);
 
   // --- SERIALIZATION LAYER ---
   
-  // Handle Paginated User Data
   const serializedUsers = (usersRes.users || []).map(user => ({
     ...user,
     _id: user._id.toString(),
     avatarKey: user.avatarKey || null,
   }));
 
-  // Handle Paginated Note Data
   const serializedNotes = (notesRes.notes || []).map(note => ({
     ...note,
     _id: note._id.toString(),
@@ -50,7 +59,6 @@ export default async function AdminDashboardPage() {
     uploadDate: note.uploadDate instanceof Date ? note.uploadDate.toISOString() : new Date(note.uploadDate).toISOString(),
   }));
 
-  // Handle Paginated Blog Data
   const serializedBlogs = (blogsRes.blogs || []).map(blog => ({
     ...blog,
     _id: blog._id.toString(),
@@ -62,12 +70,19 @@ export default async function AdminDashboardPage() {
     createdAt: blog.createdAt instanceof Date ? blog.createdAt.toISOString() : new Date(blog.createdAt).toISOString(),
   }));
 
-  // Handle Paginated Opportunity (Sarkari) Data
   const serializedOpportunities = (opportunitiesRes.opportunities || []).map(opp => ({
     ...opp,
     _id: opp._id.toString(),
     createdAt: opp.createdAt instanceof Date ? opp.createdAt.toISOString() : new Date(opp.createdAt).toISOString(),
     updatedAt: opp.updatedAt instanceof Date ? opp.updatedAt.toISOString() : new Date(opp.updatedAt).toISOString(),
+  }));
+
+  // 🚀 FIXED: Safe serialization for University Hubs (Handling Virtual Hubs without _id)
+  const serializedUniversities = (universitiesRes || []).map(univ => ({
+    ...univ,
+    _id: univ._id ? univ._id.toString() : `virtual-${univ.slug}`, // Fallback for virtual hubs
+    createdAt: univ.createdAt ? new Date(univ.createdAt).toISOString() : null,
+    updatedAt: univ.updatedAt ? new Date(univ.updatedAt).toISOString() : null,
   }));
 
   return (
@@ -90,7 +105,6 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Stats Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         <StatsCard 
             icon={<FaUsers />} 
@@ -115,7 +129,6 @@ export default async function AdminDashboardPage() {
         />
       </div>
 
-      {/* Management Section */}
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
           <AdminTabs 
             users={serializedUsers} 
@@ -123,7 +136,8 @@ export default async function AdminDashboardPage() {
             blogs={serializedBlogs} 
             analyticsData={analyticsData} 
             opportunities={serializedOpportunities} 
-            pendingPayouts={pendingPayouts} // 🚀 PASS PAYOUTS TO TABS
+            pendingPayouts={pendingPayouts} 
+            universities={serializedUniversities} 
           />
       </div>
     </div>

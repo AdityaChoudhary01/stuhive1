@@ -65,7 +65,8 @@ export async function getNotes({ page = 1, limit = 12, search, university, cours
     // Execution
     const notes = await Note.find(query)
       .select("-reviews") 
-      .populate('user', 'name avatar role email')
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate('user', 'name avatar role email isVerifiedEducator')
       .sort(sortOptions)
       .skip(skip)
       .limit(limit)
@@ -112,10 +113,11 @@ export async function getNoteBySlug(identifier) {
     }
 
     const note = await Note.findOne(query)
-      .populate('user', 'name avatar role email')
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate('user', 'name avatar role email isVerifiedEducator')
       .populate({
         path: 'reviews.user',
-        select: 'name avatar role email'
+        select: 'name avatar role email isVerifiedEducator' // 🚀 Added here too
       })
       .lean(); 
 
@@ -149,10 +151,11 @@ export async function getNoteById(id) {
   await connectDB();
   try {
     const note = await Note.findById(id)
-      .populate('user', 'name avatar role email')
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate('user', 'name avatar role email isVerifiedEducator')
       .populate({
         path: 'reviews.user',
-        select: 'name avatar role email'
+        select: 'name avatar role email isVerifiedEducator' // 🚀 Added here too
       })
       .lean(); 
 
@@ -214,7 +217,8 @@ export async function getRelatedNotes(noteId) {
       $or: orConditions
     })
     .select('title slug university course subject year rating numReviews downloadCount uploadDate fileType fileName isFeatured fileKey thumbnailKey category isPaid price') 
-    .populate('user', 'name avatar role')
+    // 🚀 THE FIX: Added isVerifiedEducator
+    .populate('user', 'name avatar role isVerifiedEducator')
     .limit(4)
     .sort({ rating: -1, downloadCount: -1 })
     .lean();
@@ -520,7 +524,7 @@ export async function addReview(noteId, userId, rating, comment, parentReviewId 
 
     revalidatePath(`/notes/${note.slug}`);
 
-    const updatedNote = await Note.findById(noteId).populate("reviews.user", "name avatar").lean();
+    const updatedNote = await Note.findById(noteId).populate("reviews.user", "name avatar isVerifiedEducator").lean(); // 🚀 Added isVerifiedEducator to newly added review logic
     const safeReviews = updatedNote.reviews.map(r => ({
        ...r,
        _id: r._id.toString(),
@@ -594,7 +598,8 @@ export async function deleteReview(noteId, reviewId) {
     await note.save();
 
     const updatedNote = await Note.findById(noteId)
-      .populate("reviews.user", "name avatar")
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate("reviews.user", "name avatar isVerifiedEducator")
       .lean();
 
     const safeReviews = updatedNote.reviews.map(r => ({

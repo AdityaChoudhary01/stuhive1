@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Image as ImageIcon, FileType, Heart, Eye, Presentation, Table as TableIcon, Loader2, School, Trophy, Lightbulb, BookOpen, Lock } from "lucide-react";
+import { Download, FileText, Image as ImageIcon, FileType, Heart, Eye, Presentation, Table as TableIcon, Loader2, School, Trophy, Lightbulb, BookOpen, Lock, BadgeCheck } from "lucide-react"; 
 import { formatDate } from "@/lib/utils";
 import StarRating from "@/components/common/StarRating";
 import { useSession } from "next-auth/react";
@@ -100,27 +100,49 @@ export default function NoteCard({ note, priority = false }) {
     }
   };
 
+  // 🚀 UPDATED DOWNLOAD HANDLER: Forces instant download via Blob
   const handleDownload = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // 🚀 NEW: Block direct download if they don't have access
     if (!hasAccess) {
       return toast({ title: "Premium Note", description: "Click to open the note and purchase access." });
     }
 
+    if (isDownloading) return;
     setIsDownloading(true);
+    
     try {
-      // 🚀 FIXED: Calling secure backend function with note._id only
-      const downloadUrl = await getNoteDownloadUrl(note._id);
-      if (!downloadUrl) throw new Error("Could not fetch secure link.");
-      window.open(downloadUrl, "_blank");
+      toast({ title: "Starting Download", description: "Fetching secure file..." });
+      
+      const signedUrl = await getNoteDownloadUrl(note._id);
+      if (!signedUrl) throw new Error("Could not fetch secure link.");
+
+      // 1. Fetch file as Blob to bypass new tab
+      const response = await fetch(signedUrl);
+      if (!response.ok) throw new Error("File retrieval failed.");
+      const blob = await response.blob();
+      
+      // 2. Create local URL
+      const localUrl = window.URL.createObjectURL(blob);
+      
+      // 3. Trigger Download
+      const link = document.createElement("a");
+      link.href = localUrl;
+      link.setAttribute("download", note.fileName || "document");
+      document.body.appendChild(link);
+      link.click();
+      
+      // 4. Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(localUrl);
+
+      // Increment stats
       incrementDownloadCount(note._id).catch(() => {});
-      toast({ title: "Starting Download" });
     } catch (error) {
       toast({ title: "Access Denied", description: error.message || "Failed to get link.", variant: "destructive" });
     } finally {
-      setTimeout(() => setIsDownloading(false), 1000);
+      setIsDownloading(false);
     }
   };
 
@@ -277,7 +299,13 @@ export default function NoteCard({ note, priority = false }) {
                 />
               </div>
               <div className="flex flex-col min-w-0 pr-1">
-                <span className="text-[11px] font-extrabold truncate text-white/90 block w-full">{note.user?.name || "Unknown"}</span>
+                <div className="flex items-center gap-1.5">
+                   <span className="text-[11px] font-extrabold truncate text-white/90">{note.user?.name || "Unknown"}</span>
+                   {/* 🚀 VERIFIED EDUCATOR BADGE */}
+                   {note.user?.isVerifiedEducator && (
+                       <BadgeCheck className="w-3 h-3 text-blue-400 shrink-0" title="Verified Expert Educator" />
+                   )}
+                </div>
                 <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest mt-[1px] truncate block w-full">{formatDate(note.uploadDate)}</span>
               </div>
             </div>
@@ -300,7 +328,6 @@ export default function NoteCard({ note, priority = false }) {
                   <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <>
-                    {/* 🚀 Changed text/icon intelligently based on access */}
                     {hasAccess ? (
                       <><Download aria-hidden="true" className="h-3.5 w-3.5" /> <span>Get</span></>
                     ) : (

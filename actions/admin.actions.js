@@ -13,6 +13,7 @@ import { deleteFileFromR2 } from "@/lib/r2";
 import { createNotification } from "@/actions/notification.actions";
 import Opportunity from "@/lib/models/Opportunity";
 import mongoose from "mongoose"; // 🚀 Added for ID validation
+import University from "@/lib/models/University";
 // Helper to check admin status
 async function isAdmin() {
   const session = await getServerSession(authOptions);
@@ -596,5 +597,158 @@ export async function processPayout(userId) {
   } catch (error) {
     console.error("Payout Processing Error:", error);
     return { success: false, error: error.message || "Internal Server Error" };
+  }
+}
+
+/**
+ * 🚀 TOGGLE VERIFIED EDUCATOR STATUS
+ */
+export async function toggleVerifiedEducator(userId) {
+  await connectDB();
+  
+  const session = await getServerSession(authOptions);
+  if (session?.user?.role !== "admin") return { success: false, error: "Unauthorized" };
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) return { success: false, error: "User not found" };
+
+    const newVerificationStatus = !user.isVerifiedEducator;
+
+    // 🚀 THE FIX: Use updateOne with $set to bypass full-document array validation
+    await User.updateOne(
+      { _id: userId },
+      { $set: { isVerifiedEducator: newVerificationStatus } }
+    );
+
+    // Only notify them if they are being verified (not un-verified)
+    if (newVerificationStatus) {
+      await createNotification({
+        recipientId: user._id,
+        type: 'SYSTEM',
+        message: `Congratulations! You have been verified as an Expert Educator. Your notes now carry a premium trust badge.`,
+        link: `/profile`
+      });
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/");
+    revalidatePath("/search"); 
+    
+    return { success: true, isVerified: newVerificationStatus };
+  } catch (error) {
+    console.error("Verification Error:", error);
+    return { success: false, error: "Database Sync Error: Please try again." };
+  }
+}
+
+
+export async function getAllUniversities() {
+  await connectDB();
+  const session = await getServerSession(authOptions);
+  if (session?.user?.role !== "admin") throw new Error("Unauthorized");
+
+  try {
+    // 1. Get unique university names from existing Notes
+    const notesUniversities = await Note.distinct("university");
+    
+    // 2. Get existing professional hub configurations
+    const professionalConfigs = await University.find().lean();
+
+    // 3. Merge them: Ensure every name from Notes exists in the list
+    const combined = notesUniversities
+      .filter(name => name && name.trim() !== "")
+      .map(name => {
+        // Find if we already have a professional config for this name
+        const config = professionalConfigs.find(
+          c => c.name.toLowerCase() === name.toLowerCase()
+        );
+
+        if (config) {
+          return { ...config, _id: config._id.toString() };
+        }
+
+        // Otherwise, return a "Virtual Hub" (Not yet professionalized)
+        return {
+          name: name,
+          slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''),
+          isVirtual: true, // Marker to show it needs setup
+          location: "",
+          logo: "",
+        };
+      });
+
+    // Sort alphabetically
+    return combined.sort((a, b) => a.name.localeCompare(b.name));
+  } catch (error) {
+    console.error("Error fetching universities:", error);
+    return [];
+  }
+}
+
+/**
+ * 2. UPSERT UNIVERSITY (Save Professional Details & Images)
+ */
+export async function upsertUniversity(data) {
+  await connectDB();
+  const session = await getServerSession(authOptions);
+  if (session?.user?.role !== "admin") return { success: false, error: "Unauthorized" };
+
+  try {
+    // Generate SEO friendly slug from name
+    const slug = data.name.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+    
+    const updatePayload = {
+      name: data.name,
+      slug: slug,
+      description: data.description,
+      logo: data.logo,         // 🚀 R2 URL from frontend upload
+      coverImage: data.coverImage, // 🚀 R2 URL from frontend upload
+      location: data.location,
+      website: data.website,
+      metaTitle: data.metaTitle,
+      metaDescription: data.metaDescription,
+      keywords: data.keywords || [],
+    };
+
+    // Find by slug and update, or create new if it doesn't exist
+    await University.findOneAndUpdate(
+      { slug: slug },
+      updatePayload,
+      { upsert: true, new: true }
+    );
+
+    // BUST CACHE: Update the public hub page and admin dashboard instantly
+    revalidatePath(`/univ/${slug}`);
+    revalidatePath('/admin');
+    
+    return { success: true };
+  } catch (error) {
+    console.error("Upsert University Error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 3. DELETE UNIVERSITY CONFIGURATION
+ */
+export async function deleteUniversityEntry(id) {
+  await connectDB();
+  const session = await getServerSession(authOptions);
+  if (session?.user?.role !== "admin") return { success: false };
+
+  try {
+    const univ = await University.findById(id);
+    if (univ) {
+        const slug = univ.slug;
+        await University.findByIdAndDelete(id);
+        revalidatePath(`/univ/${slug}`);
+    }
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (error) {
+    return { success: false };
   }
 }

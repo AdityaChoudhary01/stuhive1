@@ -45,7 +45,8 @@ export async function getCollectionById(collectionId) {
     const collection = await Collection.findById(collectionId)
       .populate({
         path: 'notes',
-        populate: { path: 'user', select: 'name avatar' }
+        // 🚀 THE FIX: Added isVerifiedEducator for the nested notes
+        populate: { path: 'user', select: 'name avatar isVerifiedEducator' }
       })
       .lean();
 
@@ -64,10 +65,12 @@ export async function getCollectionBySlug(slug) {
   await connectDB();
   try {
     const collection = await Collection.findOne({ slug, visibility: 'public' })
-      .populate('user', 'name avatar role')
+      // 🚀 THE FIX: Added isVerifiedEducator for the collection author
+      .populate('user', 'name avatar role isVerifiedEducator')
       .populate({
         path: 'notes',
-        populate: { path: 'user', select: 'name avatar' }
+        // 🚀 THE FIX: Added isVerifiedEducator for the nested notes
+        populate: { path: 'user', select: 'name avatar isVerifiedEducator' }
       })
       .lean();
 
@@ -90,7 +93,8 @@ export async function getPublicCollections({ page = 1, limit = 12 } = {}) {
     const skip = (pageNum - 1) * limitNum;
 
     const collections = await Collection.find({ visibility: 'public' })
-      .populate('user', 'name avatar')
+      // 🚀 THE FIX: Added isVerifiedEducator
+      .populate('user', 'name avatar isVerifiedEducator')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)

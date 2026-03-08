@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { addReview, deleteReview } from "@/actions/note.actions";
-import { Trash2, MessageSquare, Star, Reply, Loader2, ShieldCheck } from "lucide-react"; 
+import { Trash2, MessageSquare, Star, Reply, Loader2, ShieldCheck, BadgeCheck } from "lucide-react"; // 🚀 Added BadgeCheck
 import StarRating from "@/components/common/StarRating";
 import { formatDate } from "@/lib/utils";
 
@@ -151,11 +151,17 @@ export default function NoteReviews({ noteId, initialReviews = [] }) {
 
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {/* 🚀 Clickable Name */}
+                        {/* 🚀 Clickable Name + Verified Badge */}
                         {review.user?._id ? (
-                          <Link href={`/profile/${review.user._id}`} className="text-sm font-black text-white hover:text-cyan-400 transition-colors truncate max-w-[150px] sm:max-w-xs">
-                            {review.user.name}
-                          </Link>
+                           <div className="flex items-center gap-1">
+                              <Link href={`/profile/${review.user._id}`} className="text-sm font-black text-white hover:text-cyan-400 transition-colors truncate max-w-[150px] sm:max-w-xs">
+                                {review.user.name}
+                              </Link>
+                              {/* 🚀 VERIFIED EDUCATOR BADGE */}
+                              {review.user.isVerifiedEducator && (
+                                <BadgeCheck className="w-4 h-4 text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.8)] shrink-0" title="Verified Expert Educator" />
+                              )}
+                           </div>
                         ) : (
                           <span className="text-sm font-black text-white/50">Deleted User</span>
                         )}
@@ -234,11 +240,17 @@ export default function NoteReviews({ noteId, initialReviews = [] }) {
                               </Avatar>
                             )}
 
-                            {/* 🚀 Clickable Name (Reply) */}
+                            {/* 🚀 Clickable Name + Verified Badge (Reply) */}
                             {reply.user?._id ? (
-                              <Link href={`/profile/${reply.user._id}`} className="text-xs font-bold text-white/80 hover:text-cyan-400 transition-colors truncate max-w-[120px] sm:max-w-[200px]">
-                                {reply.user.name}
-                              </Link>
+                               <div className="flex items-center gap-1">
+                                  <Link href={`/profile/${reply.user._id}`} className="text-xs font-bold text-white/80 hover:text-cyan-400 transition-colors truncate max-w-[120px] sm:max-w-[200px]">
+                                    {reply.user.name}
+                                  </Link>
+                                  {/* 🚀 VERIFIED EDUCATOR BADGE */}
+                                  {reply.user.isVerifiedEducator && (
+                                    <BadgeCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" title="Verified Expert Educator" />
+                                  )}
+                               </div>
                             ) : (
                               <span className="text-xs font-bold text-white/50">Deleted User</span>
                             )}

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, HelpCircle, FolderHeart, ArrowRight, BookOpen, Clock, MessageSquare, GraduationCap, ArrowDown, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { loadMoreUniversityData } from "@/actions/university.actions"; // 🚀 Import the new action
+import { loadMoreUniversityData } from "@/actions/university.actions"; 
 
 export default function UniversityHubClient({ data, slug }) {
   const [activeTab, setActiveTab] = useState("notes");

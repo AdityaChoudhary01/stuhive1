@@ -4,6 +4,7 @@ import dbConnect from "@/lib/db";
 import Note from "@/lib/models/Note"; 
 import Collection from "@/lib/models/Collection";
 import Request from "@/lib/models/Request";
+import University from "@/lib/models/University"; // 🚀 Added to fetch Admin SEO content
 
 export async function getUniversityHubData(slug) {
   try {
@@ -16,22 +17,28 @@ export async function getUniversityHubData(slug) {
     // 🚀 FIXED: Set limit to 12 for perfect grid alignments
     const limitNum = 12;
 
-    const [notes, collections, requests] = await Promise.all([
-      Note.find({ university: uniRegex }).sort({ viewCount: -1 }).limit(limitNum).populate('user', 'name avatar').lean(),
+    const [universityDetails, notes, collections, requests] = await Promise.all([
+      // 🚀 Fetch admin-curated university details (if they exist)
+      University.findOne({ slug }).lean(),
+
+      // 🚀 THE FIX: Added isVerifiedEducator
+      Note.find({ university: uniRegex }).sort({ viewCount: -1 }).limit(limitNum).populate('user', 'name avatar isVerifiedEducator').lean(),
       
       Collection.find({ 
         $or: [{ name: uniRegex }, { university: uniRegex }], 
         visibility: 'public' 
-      }).sort({ createdAt: -1 }).limit(limitNum).populate('user', 'name avatar').lean(),
+      }).sort({ createdAt: -1 }).limit(limitNum).populate('user', 'name avatar isVerifiedEducator').lean(),
       
-      Request.find({ university: uniRegex, status: 'pending' }).sort({ createdAt: -1 }).limit(limitNum).populate('requester', 'name avatar').lean()
+      Request.find({ university: uniRegex, status: 'pending' }).sort({ createdAt: -1 }).limit(limitNum).populate('requester', 'name avatar isVerifiedEducator').lean()
     ]);
 
-    const formattedName = nameStr.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    // Fallback to slug-derived name if admin hasn't set a custom name
+    const formattedName = universityDetails?.name || nameStr.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
     return {
       success: true,
       universityName: formattedName,
+      details: universityDetails ? JSON.parse(JSON.stringify(universityDetails)) : null, // 🚀 Pass details to frontend for SEO
       stats: {
         noteCount: await Note.countDocuments({ university: uniRegex }),
         collectionCount: await Collection.countDocuments({ 
@@ -46,7 +53,7 @@ export async function getUniversityHubData(slug) {
     };
   } catch (error) {
     console.error("Error fetching university data:", error);
-    return { success: false, universityName: slug, notes: [], collections: [], requests: [], stats: {} };
+    return { success: false, universityName: slug, details: null, notes: [], collections: [], requests: [], stats: {} };
   }
 }
 
@@ -80,18 +87,19 @@ export async function loadMoreUniversityData(slug, tab, page = 1, limit = 12) {
     const skip = (page - 1) * limit;
 
     if (tab === 'notes') {
-      const notes = await Note.find({ university: uniRegex }).sort({ viewCount: -1 }).skip(skip).limit(limit).populate('user', 'name avatar').lean();
+      // 🚀 THE FIX: Added isVerifiedEducator
+      const notes = await Note.find({ university: uniRegex }).sort({ viewCount: -1 }).skip(skip).limit(limit).populate('user', 'name avatar isVerifiedEducator').lean();
       return JSON.parse(JSON.stringify(notes));
     }
     
     if (tab === 'collections') {
       const collections = await Collection.find({ $or: [{ name: uniRegex }, { university: uniRegex }], visibility: 'public' })
-        .sort({ createdAt: -1 }).skip(skip).limit(limit).populate('user', 'name avatar').lean();
+        .sort({ createdAt: -1 }).skip(skip).limit(limit).populate('user', 'name avatar isVerifiedEducator').lean();
       return JSON.parse(JSON.stringify(collections));
     }
     
     if (tab === 'requests') {
-      const requests = await Request.find({ university: uniRegex, status: 'pending' }).sort({ createdAt: -1 }).skip(skip).limit(limit).populate('requester', 'name avatar').lean();
+      const requests = await Request.find({ university: uniRegex, status: 'pending' }).sort({ createdAt: -1 }).skip(skip).limit(limit).populate('requester', 'name avatar isVerifiedEducator').lean();
       return JSON.parse(JSON.stringify(requests));
     }
     

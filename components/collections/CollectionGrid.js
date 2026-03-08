@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { FolderHeart, ArrowRight, BookOpen, Loader2, ArrowDown, Globe, User, Lock, GraduationCap, Trophy, School, Lightbulb } from "lucide-react";
+import { FolderHeart, ArrowRight, BookOpen, Loader2, ArrowDown, Globe, User, Lock, GraduationCap, Trophy, School, Lightbulb, BadgeCheck } from "lucide-react"; // 🚀 Added BadgeCheck
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getPublicCollections, getUserCollections } from "@/actions/collection.actions";
@@ -267,9 +267,15 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
                 <AvatarFallback className="bg-gray-800 text-gray-300 text-[8px] sm:text-xs font-black">{authorName.charAt(0)}</AvatarFallback>
               </Avatar>
               <div className="flex flex-col min-w-0">
-                <span className="text-[10px] sm:text-xs font-black text-gray-300 truncate max-w-[80px] sm:max-w-[100px] group-hover:text-white transition-colors">
-                  {isPersonal ? "Me" : authorName}
-                </span>
+                {/* 🚀 ADDED VERIFIED TICK */}
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] sm:text-xs font-black text-gray-300 truncate max-w-[80px] sm:max-w-[100px] group-hover:text-white transition-colors">
+                    {isPersonal ? "Me" : authorName}
+                  </span>
+                  {(col.user?.isVerifiedEducator || (isPersonal && sessionUser?.isVerifiedEducator)) && (
+                    <BadgeCheck className="w-3 h-3 text-blue-400 shrink-0" title="Verified Expert Educator" />
+                  )}
+                </div>
 
                 {isPersonal && col.visibility === "private" ? (
                   <span className="text-[7px] sm:text-[9px] font-black uppercase tracking-widest text-red-400 flex items-center gap-0.5 mt-0.5">

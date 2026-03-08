@@ -28,8 +28,11 @@ export default function AddToPlanButton({ resourceId, resourceType }) {
   const [isOpen, setIsOpen] = useState(false);
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedTime, setSelectedTime] = useState(60); // 🚀 NEW: State for estimated time
-  const [addingToId, setAddingToId] = useState(null); // Tracking specific plan being updated
+  const [selectedTime, setSelectedTime] = useState(60); 
+  const [addingToId, setAddingToId] = useState(null); 
+  
+  // 🚀 NEW: State to dynamically control left/right alignment to prevent screen overflow
+  const [dropdownAlignment, setDropdownAlignment] = useState("right-0");
   
   const menuRef = useRef(null);
 
@@ -64,6 +67,21 @@ export default function AddToPlanButton({ resourceId, resourceType }) {
       variant: "destructive" 
     });
 
+    // 🚀 NEW: Smart position detection logic for mobile devices
+    if (menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      const spaceOnLeft = rect.left;
+      
+      // The dropdown is w-72 (288px). If there is less than 300px space on the left,
+      // it means the button is on the left side of the screen and extending left will cut it off.
+      // So, we anchor it to the left side (opens towards the right).
+      if (spaceOnLeft < 300) {
+        setDropdownAlignment("left-0");
+      } else {
+        setDropdownAlignment("right-0");
+      }
+    }
+
     setLoading(true);
     setIsOpen(true); 
     const res = await getUserStudyPlans(session.user.id);
@@ -76,7 +94,7 @@ export default function AddToPlanButton({ resourceId, resourceType }) {
     const res = await addResourceToPlan(session.user.id, planId, {
       id: resourceId,
       type: resourceType,
-      estimatedTime: selectedTime // 🚀 Passing custom time to backend
+      estimatedTime: selectedTime 
     });
 
     if (res.success) {
@@ -110,9 +128,8 @@ export default function AddToPlanButton({ resourceId, resourceType }) {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 bottom-full mb-3 w-72 bg-[#0a0a0a]/95 backdrop-blur-xl border border-white/10 rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 z-[100] animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div className={`absolute ${dropdownAlignment} bottom-full mb-3 w-72 bg-[#0a0a0a]/95 backdrop-blur-xl border border-white/10 rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 z-[100] animate-in fade-in slide-in-from-bottom-3 duration-200`}>
           
-          {/* 🚀 NEW: Time Estimation Slider Section */}
           <div className="mb-4 p-3 bg-white/5 rounded-2xl border border-white/5">
             <div className="flex justify-between items-center mb-2">
               <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1">

@@ -15,29 +15,35 @@ export default function DownloadButton({ signedUrl, fileName, noteId }) {
     setIsDownloading(true);
     
     try {
-      // 1. Trigger the download
-      // Since our R2 Signed URL already contains the 'Content-Disposition' header 
-      // with the filename, the browser will automatically handle the naming.
+      toast({
+        title: "Starting Download",
+        description: `Fetching ${fileName || 'document'}...`,
+      });
+
+      // 1. Fetch the file as a Blob (Forces download, bypasses new tab)
+      const response = await fetch(signedUrl);
+      if (!response.ok) throw new Error("Failed to fetch file");
+      
+      const blob = await response.blob();
+      
+      // 2. Create a temporary local URL for the blob
+      const localUrl = window.URL.createObjectURL(blob);
+      
+      // 3. Trigger the download using the local URL
       const link = document.createElement("a");
-      link.href = signedUrl;
-      
-      // We keep these as a fallback, but the R2 header does the heavy lifting
+      link.href = localUrl;
       link.setAttribute("download", fileName || "document");
-      link.style.display = "none";
-      
       document.body.appendChild(link);
       link.click();
+      
+      // 4. Cleanup to prevent memory leaks
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(localUrl);
 
-      // 2. Increment count in Database (Fire and forget)
+      // 5. Increment count in Database (Fire and forget)
       incrementDownloadCount(noteId).catch(err => 
         console.error("Failed to increment stats:", err)
       );
-
-      toast({
-        title: "Starting Download",
-        description: `Downloading ${fileName}...`,
-      });
       
     } catch (error) {
       console.error("Download execution failed:", error);
@@ -47,8 +53,7 @@ export default function DownloadButton({ signedUrl, fileName, noteId }) {
         variant: "destructive"
       });
     } finally {
-      // Small delay to prevent double-clicking while the browser starts the stream
-      setTimeout(() => setIsDownloading(false), 1000);
+      setIsDownloading(false);
     }
   };
 
@@ -62,7 +67,7 @@ export default function DownloadButton({ signedUrl, fileName, noteId }) {
       {isDownloading ? (
         <>
           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          Preparing...
+          Downloading...
         </>
       ) : (
         <>

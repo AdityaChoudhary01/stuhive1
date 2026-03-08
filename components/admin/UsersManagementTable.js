@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react"; 
-import { toggleUserRole, deleteUser, getAllUsers } from "@/actions/admin.actions"; 
+import { toggleUserRole, deleteUser, getAllUsers, toggleVerifiedEducator } from "@/actions/admin.actions"; 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, ShieldAlert, ShieldCheck, Loader2, Crown, UserCircle, Search, ChevronDown } from "lucide-react"; 
+import { Trash2, ShieldAlert, ShieldCheck, Loader2, Crown, UserCircle, Search, ChevronDown, BadgeCheck } from "lucide-react"; 
 
 export default function UserManagementTable({ initialUsers }) {
   const [users, setUsers] = useState(initialUsers);
@@ -44,6 +44,23 @@ export default function UserManagementTable({ initialUsers }) {
       toast({ title: "User Deleted", variant: "destructive" });
     } else {
       toast({ title: "Error", description: res.error, variant: "destructive" });
+    }
+    setLoadingId(null);
+  };
+
+  // 🚀 NEW: VERIFIED EDUCATOR TOGGLE
+  const handleToggleVerified = async (userId, currentStatus, userName) => {
+    const action = currentStatus ? "Remove verification from" : "Verify";
+    if (!confirm(`${action} ${userName} as an Educator?`)) return;
+
+    setLoadingId(`verify-${userId}`);
+    const res = await toggleVerifiedEducator(userId);
+
+    if (res.success) {
+      setUsers(users.map(u => u._id === userId ? { ...u, isVerifiedEducator: res.isVerified } : u));
+      toast({ title: "Status Updated", description: `${userName} is ${res.isVerified ? 'now' : 'no longer'} a Verified Educator.` });
+    } else {
+      toast({ title: "Action Failed", description: res.error, variant: "destructive" });
     }
     setLoadingId(null);
   };
@@ -93,7 +110,7 @@ export default function UserManagementTable({ initialUsers }) {
 
       {/* TABLE */}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left min-w-[700px]">
+        <table className="w-full text-sm text-left min-w-[800px]">
           <thead className="bg-white/[0.02] text-white/40 uppercase text-[10px] font-black tracking-[0.2em] border-b border-white/5">
             <tr>
               <th className="px-8 py-5">Identity</th>
@@ -124,9 +141,15 @@ export default function UserManagementTable({ initialUsers }) {
                         )}
                       </div>
                       <div className="flex flex-col min-w-0">
-                        <span className="font-bold text-white text-base truncate max-w-[180px] lg:max-w-[250px] group-hover:text-blue-400 transition-colors">
-                            {user.name}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-white text-base truncate max-w-[180px] lg:max-w-[250px] group-hover:text-blue-400 transition-colors">
+                              {user.name}
+                            </span>
+                            {/* 🚀 VERIFIED EDUCATOR BADGE */}
+                            {user.isVerifiedEducator && (
+                                <BadgeCheck className="w-4 h-4 text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]" title="Verified Educator" />
+                            )}
+                        </div>
                         <span className="text-[10px] text-white/40 font-mono truncate max-w-[180px] lg:max-w-[250px]">
                           {user.email}
                         </span>
@@ -160,29 +183,47 @@ export default function UserManagementTable({ initialUsers }) {
                   </td>
                   
                   {/* 4. Administrative Actions */}
-                  <td className="px-8 py-5 text-right space-x-3 whitespace-nowrap">
+                  <td className="px-8 py-5 text-right space-x-2 whitespace-nowrap flex items-center justify-end">
+                    
+                    {/* 🚀 VERIFY EDUCATOR BUTTON */}
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className={`h-9 px-4 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${user.role === 'admin' ? 'hover:bg-red-500/10 hover:text-red-400 text-white/40' : 'hover:bg-cyan-500/10 hover:text-cyan-400 text-white/40'}`}
-                      onClick={() => handleToggleRole(user._id)} // 🚀 Pass only ID
-                      disabled={loadingId === user._id || isMainAdmin}
+                      className={`h-9 px-3 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${user.isVerifiedEducator ? 'hover:bg-amber-500/10 hover:text-amber-400 text-blue-400' : 'hover:bg-blue-500/10 hover:text-blue-400 text-white/40'}`}
+                      onClick={() => handleToggleVerified(user._id, user.isVerifiedEducator, user.name)}
+                      disabled={loadingId === `verify-${user._id}` || loadingId === user._id || isMainAdmin}
+                    >
+                      {loadingId === `verify-${user._id}` ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : user.isVerifiedEducator ? (
+                        <><BadgeCheck className="w-3.5 h-3.5 mr-1.5" /> Revoke</>
+                      ) : (
+                        <><BadgeCheck className="w-3.5 h-3.5 mr-1.5" /> Verify</>
+                      )}
+                    </Button>
+
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className={`h-9 px-3 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${user.role === 'admin' ? 'hover:bg-red-500/10 hover:text-red-400 text-white/40' : 'hover:bg-cyan-500/10 hover:text-cyan-400 text-white/40'}`}
+                      onClick={() => handleToggleRole(user._id)} 
+                      disabled={loadingId === user._id || loadingId === `verify-${user._id}` || isMainAdmin}
                     >
                       {loadingId === user._id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin"/>
                       ) : user.role === 'admin' ? (
-                        <><ShieldAlert className="w-3.5 h-3.5 mr-2"/> Demote</>
+                        <><ShieldAlert className="w-3.5 h-3.5 mr-1.5"/> Demote</>
                       ) : (
-                        <><ShieldCheck className="w-3.5 h-3.5 mr-2"/> Promote</>
+                        <><ShieldCheck className="w-3.5 h-3.5 mr-1.5"/> Promote</>
                       )}
                     </Button>
 
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="h-9 w-9 rounded-xl text-red-500/40 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                      className="h-9 w-9 rounded-xl text-red-500/40 hover:text-red-500 hover:bg-red-500/10 transition-all ml-1"
                       onClick={() => handleDelete(user._id)}
-                      disabled={loadingId === user._id || isMainAdmin}
+                      disabled={loadingId === user._id || loadingId === `verify-${user._id}` || isMainAdmin}
                     >
                       {loadingId === user._id ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Trash2 className="w-3.5 h-3.5" />}
                     </Button>
