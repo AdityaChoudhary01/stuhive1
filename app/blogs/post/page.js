@@ -123,6 +123,13 @@ const PostBlogPage = ({ existingBlog = null, onBlogUpdated = () => {}, onClose =
             return;
         }
 
+        // 🚀 ADDED: Tag limit validation before processing upload
+        const tagArray = formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+        if (tagArray.length > 5) {
+            setError('You can only add a maximum of 5 tags.');
+            return;
+        }
+
         setLoading(true); // Lock the form instantly
 
         try {
@@ -149,8 +156,6 @@ const PostBlogPage = ({ existingBlog = null, onBlogUpdated = () => {}, onClose =
             }
 
             setUploadStatus(isEditing ? "Saving changes..." : "Publishing article...");
-
-            const tagArray = formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
 
             let result;
 
@@ -292,8 +297,10 @@ const PostBlogPage = ({ existingBlog = null, onBlogUpdated = () => {}, onClose =
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             <div>
-                                <label htmlFor="tags" className="flex items-center gap-2 text-sm font-bold text-white/80 mb-2 uppercase tracking-wider">
-                                    <FaLink className="text-green-400" /> Tags
+                                {/* 🚀 ADDED: Max 5 Indicator text right aligned */}
+                                <label htmlFor="tags" className="flex items-center justify-between text-sm font-bold text-white/80 mb-2 uppercase tracking-wider">
+                                    <span className="flex items-center gap-2"><FaLink className="text-green-400" /> Tags</span>
+                                    <span className="text-[10px] text-white/40 font-mono normal-case tracking-normal">Max 5</span>
                                 </label>
                                 <input 
                                     id="tags" name="tags" type="text" 

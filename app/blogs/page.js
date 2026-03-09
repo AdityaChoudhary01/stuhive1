@@ -15,10 +15,15 @@ export const revalidate = 60;
 export async function generateMetadata({ searchParams }) {
   const params = await searchParams; 
   const page = params.page || 1;
-  const tag = params.tag || "All";
+  const tag = params.tag;
+  const search = params.search;
   
+  // 🚀 If there are search or tag params, we tell Google NOT to index this specific URL variant
+  // to avoid duplicate content issues in GSC.
+  const shouldIndex = !tag && !search;
+
   const title = page > 1 ? `Student Insights & Articles - Page ${page} | StuHive` : "Insights & Stories | Academic Blog & Student Experiences";
-  const description = `Read the latest ${tag !== "All" ? tag : "academic"} articles, exam preparation tips, and university success stories written by top students on StuHive. Page ${page}.`;
+  const description = `Read the latest ${tag ? tag : "academic"} articles, exam preparation tips, and university success stories written by top students on StuHive. Page ${page}.`;
 
   return {
     title,
@@ -26,16 +31,17 @@ export async function generateMetadata({ searchParams }) {
     keywords: [
       "student blog", "university tips", "exam preparation strategies",
       "academic insights", "college advice", "student experiences",
-      "StuHive blog", tag !== "All" ? `${tag} study tips` : "study hacks"
+      "StuHive blog", tag ? `${tag} study tips` : "study hacks"
     ].filter(Boolean),
     alternates: {
+      // 🚀 Force Canonical to base page (with page number) to consolidate link equity
       canonical: `${APP_URL}/blogs${page > 1 ? `?page=${page}` : ''}`,
     },
     robots: {
-      index: true,
-      follow: true,
+      index: shouldIndex,   // 🚀 Prevents indexing of ?tag= and ?search=
+      follow: true,         // Still allows Google to follow the links to actual blog posts
       googleBot: {
-        index: true,
+        index: shouldIndex,
         follow: true,
         'max-video-preview': -1,
         'max-image-preview': 'large',

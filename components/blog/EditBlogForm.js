@@ -129,6 +129,13 @@ const EditBlogForm = ({ blog }) => {
             return;
         }
 
+        // 🚀 ADDED: Tag limit validation before processing upload
+        const tagArray = formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+        if (tagArray.length > 5) {
+            setError('You can only add a maximum of 5 tags.');
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -158,8 +165,6 @@ const EditBlogForm = ({ blog }) => {
             setUploadStatus("Saving changes...");
 
             // 2. Prepare Data
-            const tagArray = formData.tags.split(',').map(t => t.trim()).filter(Boolean);
-
             const updatedData = {
                 ...formData,
                 tags: tagArray,
@@ -265,9 +270,13 @@ const EditBlogForm = ({ blog }) => {
                 </div>
 
                 <div style={styles.formGroup}>
-                    <label htmlFor="tags" style={styles.label}>
-                        <FaLink style={{color: '#ff00cc'}} /> Tags
-                    </label>
+                    {/* 🚀 ADDED: Max 5 Indicator text */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <label htmlFor="tags" style={{ ...styles.label, marginBottom: 0 }}>
+                            <FaLink style={{color: '#ff00cc'}} /> Tags
+                        </label>
+                        <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>Max 5</span>
+                    </div>
                     <input 
                         id="tags" 
                         name="tags" 

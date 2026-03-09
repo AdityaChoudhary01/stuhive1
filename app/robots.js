@@ -7,14 +7,15 @@ export default function robots() {
         userAgent: "*",
         allow: [
           "/",
-          "/search", // 🚀 Explicitly allow the Notes Listing/Filtering page
+          "/search", // Explicitly allow the Notes Listing page
         ],
         disallow: [
           "/api/",       // Protect backend routes 
           "/settings/",  // Private user settings
           "/admin/",     // Sensitive admin area
-          "/*?q=",       // 🔍 Disallow global-search result variations
-          "/*?search=",  // 🔍 Disallow specific search query result variations
+          "/*?q=",       // Disallow global-search result variations
+          "/*?search=",  // Disallow specific search query result variations
+          "/*?tag=",     // 🚀 PREVENT INDEXING OF TAG FILTERS
         ],
       },
     ],
