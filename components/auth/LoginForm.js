@@ -27,13 +27,18 @@ export default function LoginForm() {
   
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  
   const authError = searchParams.get("error");
+  // Safely extract the callback URL, defaulting to home if none exists
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
 
+  // 🚀 FIXED: Ensure that if session catches up, we forcefully push them to their destination
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace("/");
+      router.push(callbackUrl);
+      router.refresh();
     }
-  }, [status, router]);
+  }, [status, router, callbackUrl]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -51,16 +56,17 @@ export default function LoginForm() {
       toast({ title: "Login Failed", description: "Invalid email or password", variant: "destructive" });
       setLoading(false);
     } else {
-      router.push("/");
-      router.refresh();
+      // 🚀 FIXED: Rely on the window redirect to guarantee navigation, bypassing Next.js internal router caching quirks on login.
+      window.location.href = callbackUrl;
     }
   };
 
   const handleGoogleSignIn = () => {
     setGoogleLoading(true);
-    signIn("google", { callbackUrl: "/" });
+    signIn("google", { callbackUrl });
   };
 
+  // Prevent UI flashing if already logged in or checking
   if (status === "loading" || status === "authenticated") {
     return (
       <div className="flex flex-col items-center justify-center p-12">
@@ -70,7 +76,6 @@ export default function LoginForm() {
   }
 
   return (
-    // ✅ Use <section> for better semantic structure
     <section className="w-full max-w-md p-8 space-y-6 bg-card border rounded-2xl shadow-xl">
       <header className="text-center space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
@@ -122,7 +127,8 @@ export default function LoginForm() {
       </Button>
 
       <footer className="text-center text-sm text-muted-foreground">
-        Don't have an account? <Link href="/signup" title="Create a new StuHive account" className="text-primary font-medium hover:underline">Sign up</Link>
+        {/* 🚀 FIXED: ESLint apostrophe escape */}
+        Don&apos;t have an account? <Link href="/signup" title="Create a new StuHive account" className="text-primary font-medium hover:underline">Sign up</Link>
       </footer>
     </section>
   );

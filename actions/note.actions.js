@@ -295,7 +295,8 @@ export async function createNote({ title, description, category, university, cou
 }
 
 /**
- * 🚀 UPDATE NOTE (UPDATED WITH MARKETPLACE FIELDS)
+ * 🚀 UPDATE NOTE (WITH FRAUD PROTECTION)
+ * Prevents file swaps after a note has been purchased.
  */
 export async function updateNote(noteId, data, userId) {
   await connectDB();
@@ -310,6 +311,16 @@ export async function updateNote(noteId, data, userId) {
       return { success: false, error: "Unauthorized" };
     }
 
+    // 🛡️ FRAUD PROTECTION: If the note has sales, prevent changing the core file content
+    const hasSales = note.salesCount > 0;
+    if (hasSales && data.fileData && !isAdmin) {
+      return { 
+        success: false, 
+        error: "This note has active buyers. You cannot change the file. Please upload a new version as a separate note." 
+      };
+    }
+
+    // Update basic metadata
     note.title = data.title || note.title;
     note.description = data.description || note.description;
     note.category = data.category || note.category; 
@@ -318,30 +329,30 @@ export async function updateNote(noteId, data, userId) {
     note.subject = data.subject || note.subject;
     note.year = data.year || note.year;
 
-    // 🚀 UPDATE MARKETPLACE LOGIC
+    // 💰 Update Marketplace Logic
     if (data.hasOwnProperty('isPaid')) {
       note.isPaid = Boolean(data.isPaid);
       note.price = note.isPaid ? Number(data.price) : 0;
       note.previewPages = note.isPaid ? Number(data.previewPages) : 0;
     }
 
-    // Optional file data update
+    // Optional file data update (Only permitted if no sales OR is admin)
     if (data.fileData) {
-      // 🚀 Clean up ALL old files from R2
       if (note.fileKey) await deleteFileFromR2(note.fileKey);
       if (note.thumbnailKey) await deleteFileFromR2(note.thumbnailKey);
-      if (note.previewKey) await deleteFileFromR2(note.previewKey); // 🚀 NEW: Clean up old preview file
+      if (note.previewKey) await deleteFileFromR2(note.previewKey); 
 
       note.fileName = data.fileData.fileName;
       note.fileKey = data.fileData.fileKey;
       note.thumbnailKey = data.fileData.thumbnailKey;
-      note.previewKey = data.fileData.previewKey || null; // 🚀 NEW: Store updated previewKey
+      note.previewKey = data.fileData.previewKey || null;
       note.fileType = data.fileData.fileType;
       note.fileSize = data.fileData.fileSize;
     }
 
     await note.save();
 
+    // SEO Re-indexing
     const urlToPing = `${APP_URL}/notes/${note.slug}`;
     await indexNewContent(note.slug, 'note');
     await pingIndexNow([urlToPing]);
@@ -357,7 +368,8 @@ export async function updateNote(noteId, data, userId) {
 }
 
 /**
- * DELETE NOTE
+ * 🛡️ DELETE / ARCHIVE NOTE
+ * Ensures buyers don't lose access. Permanent deletion only for Admin.
  */
 export async function deleteNote(noteId, userId) {
   await connectDB();
@@ -373,10 +385,28 @@ export async function deleteNote(noteId, userId) {
       return { success: false, error: "Unauthorized" };
     }
 
-    // 🚀 Clean up R2 storage
+    const hasSales = note.salesCount > 0;
+
+    // 🚀 LOGIC: If note has buyers, we ARCHIVE it (hide from public) instead of deleting.
+    // Permanent deletion from R2 and DB is ONLY possible if salesCount is 0 OR user is Admin.
+    if (hasSales && !isAdmin) {
+      note.isArchived = true;
+      note.visibility = "private"; // Assume you have a visibility field or handle this via isArchived
+      await note.save();
+
+      // Remove from SEO index so no new users find it
+      await removeContentFromIndex(note.slug, 'note');
+      
+      revalidatePath('/search');
+      revalidatePath('/profile');
+      
+      return { success: true, message: "Note archived. Active buyers still have access." };
+    }
+
+    // 🚀 PERMANENT DELETION (Only if 0 sales OR Admin)
     if (note.fileKey) await deleteFileFromR2(note.fileKey);
     if (note.thumbnailKey) await deleteFileFromR2(note.thumbnailKey);
-    if (note.previewKey) await deleteFileFromR2(note.previewKey); // 🚀 NEW: Clean up preview file
+    if (note.previewKey) await deleteFileFromR2(note.previewKey);
 
     await Promise.all([
       Note.findByIdAndDelete(noteId),

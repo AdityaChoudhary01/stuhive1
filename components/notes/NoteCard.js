@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Image as ImageIcon, FileType, Heart, Eye, Presentation, Table as TableIcon, Loader2, School, Trophy, Lightbulb, BookOpen, Lock, BadgeCheck } from "lucide-react"; 
+import { Download, FileText, Image as ImageIcon, FileType, Heart, Eye, Presentation, Table as TableIcon, Loader2, School, Trophy, Lightbulb, BookOpen, Lock, BadgeCheck, CheckCircle2, Crown } from "lucide-react"; 
 import { formatDate } from "@/lib/utils";
 import StarRating from "@/components/common/StarRating";
 import { useSession } from "next-auth/react";
@@ -43,11 +43,28 @@ export default function NoteCard({ note, priority = false }) {
 
   const [isSaved, setIsSaved] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  
+  // 🚀 RESPONSIVE OBSERVER STATE
+  const cardRef = useRef(null);
+  const [isCompact, setIsCompact] = useState(false);
 
   useEffect(() => {
     if (session?.user?.savedNotes?.includes(note._id)) setIsSaved(true);
     else setIsSaved(false);
   }, [session?.user?.savedNotes, note._id]);
+
+  // 🚀 COMPACT MODE LISTENER (Detects 2-column mobile squeezing)
+  useEffect(() => {
+    if (!cardRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        // If card width is less than 240px, it activates compact mode
+        setIsCompact(entry.contentRect.width < 240);
+      }
+    });
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const r2PublicUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
   const thumbnailUrl = note.thumbnailKey
@@ -77,7 +94,7 @@ export default function NoteCard({ note, priority = false }) {
   // 🚀 BULLETPROOF ACCESS LOGIC FOR THE CARD
   const isOwner = session?.user?.id && (session.user.id === note.user?._id?.toString() || session.user.id === note.user?.toString());
   const isAdmin = session?.user?.role === 'admin';
-  const hasPurchased = session?.user?.purchasedNotes?.includes(note._id);
+  const hasPurchased = session?.user?.purchasedNotes?.some(id => id.toString() === note._id.toString());
   const hasAccess = !note.isPaid || note.price === 0 || hasPurchased || isOwner || isAdmin;
 
   const handleSave = async (e) => {
@@ -100,7 +117,7 @@ export default function NoteCard({ note, priority = false }) {
     }
   };
 
-  // 🚀 UPDATED DOWNLOAD HANDLER: Forces instant download via Blob
+  // 🚀 UPDATED DOWNLOAD HANDLER
   const handleDownload = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -118,26 +135,20 @@ export default function NoteCard({ note, priority = false }) {
       const signedUrl = await getNoteDownloadUrl(note._id);
       if (!signedUrl) throw new Error("Could not fetch secure link.");
 
-      // 1. Fetch file as Blob to bypass new tab
       const response = await fetch(signedUrl);
       if (!response.ok) throw new Error("File retrieval failed.");
       const blob = await response.blob();
       
-      // 2. Create local URL
       const localUrl = window.URL.createObjectURL(blob);
-      
-      // 3. Trigger Download
       const link = document.createElement("a");
       link.href = localUrl;
       link.setAttribute("download", note.fileName || "document");
       document.body.appendChild(link);
       link.click();
       
-      // 4. Cleanup
       document.body.removeChild(link);
       window.URL.revokeObjectURL(localUrl);
 
-      // Increment stats
       incrementDownloadCount(note._id).catch(() => {});
     } catch (error) {
       toast({ title: "Access Denied", description: error.message || "Failed to get link.", variant: "destructive" });
@@ -148,6 +159,7 @@ export default function NoteCard({ note, priority = false }) {
 
   return (
     <Card
+      ref={cardRef} // 🚀 Attached Observer Ref
       onClick={() => {}} 
       className="w-full max-w-[400px] mx-auto h-full flex flex-col group relative bg-[#050505]
         border border-white/10 rounded-[28px] overflow-visible
@@ -208,12 +220,26 @@ export default function NoteCard({ note, priority = false }) {
             </Badge>
           </div>
 
-          {/* 🚀 MARKETPLACE: Price Badge */}
-          {note.isPaid && note.price > 0 && (
-            <Badge className="absolute bottom-4 right-4 z-40 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm px-3 py-1 shadow-xl border border-emerald-400/50 backdrop-blur-md">
-              ₹{note.price}
-            </Badge>
-          )}
+          {/* 🚀 SMART PRICE/PURCHASE BADGE SECTION */}
+          <div className="absolute bottom-4 right-4 z-40">
+            {note.isPaid && note.price > 0 && (
+              <>
+                {hasPurchased ? (
+                  <Badge className="bg-white/10 backdrop-blur-xl text-emerald-400 font-black text-[10px] px-3 py-1.5 shadow-xl border border-emerald-500/30 flex items-center gap-1.5 uppercase tracking-tighter">
+                    <CheckCircle2 size={12} className="fill-emerald-500/20" /> Purchased
+                  </Badge>
+                ) : (isAdmin || isOwner) ? (
+                  <Badge className="bg-white/10 backdrop-blur-xl text-yellow-400 font-black text-[10px] px-3 py-1.5 shadow-xl border border-yellow-500/30 flex items-center gap-1.5 uppercase tracking-tighter">
+                    <Crown size={12} className="fill-yellow-500/20" /> Premium Asset
+                  </Badge>
+                ) : (
+                  <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm px-3 py-1 shadow-xl border border-emerald-400/50 backdrop-blur-md">
+                    ₹{note.price}
+                  </Badge>
+                )}
+              </>
+            )}
+          </div>
 
           <Link href={`/notes/${note.slug || note._id}`} tabIndex={-1} aria-hidden="true" className="block w-full h-full relative z-10">
             {thumbnailUrl ? (
@@ -225,7 +251,7 @@ export default function NoteCard({ note, priority = false }) {
                 priority={priority}
                 fetchPriority={priority ? "high" : "auto"}
                 unoptimized={true}
-                className={`object-cover transition-all duration-[1500ms] ease-out group-hover:scale-[1.08] opacity-85 group-hover:opacity-100 will-change-transform transform-gpu ${!hasAccess ? 'blur-[2px] group-hover:blur-sm' : ''}`}
+                className={`object-cover transition-all duration-[1500ms] ease-out group-hover:scale-[1.08] opacity-85 group-hover:opacity-100 will-change-transform transform-gpu ${!hasAccess ? 'blur-[5px] group-hover:blur-sm' : 'blur-0'}`}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-white/30 group-hover:text-cyan-300 transition-all duration-700 bg-white/[0.02]">
@@ -285,9 +311,11 @@ export default function NoteCard({ note, priority = false }) {
             </div>
           </div>
 
+          {/* 🚀 RESPONSIVE USER INFO FOOTER */}
           <div className="flex items-center justify-between gap-2 mt-auto">
-            <div className="flex items-center gap-2.5 overflow-hidden flex-1 max-w-[65%]">
-              <div className="shrink-0">
+            
+            <div className="flex items-center gap-2.5 overflow-hidden flex-1 min-w-0">
+              <div className="shrink-0 relative">
                 <img
                   src={note.user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(note.user?.name || "U")}&background=random&color=fff`}
                   alt={`${note.user?.name}'s avatar`}
@@ -297,16 +325,27 @@ export default function NoteCard({ note, priority = false }) {
                   loading="lazy"
                   className="w-[34px] h-[34px] min-w-[34px] min-h-[34px] rounded-full border border-white/20 object-cover"
                 />
+                {/* 🚀 Move Badge over Avatar when Compact */}
+                {isCompact && note.user?.isVerifiedEducator && (
+                  <div className="absolute -bottom-1 -right-1 bg-[#050505] rounded-full p-[1px] z-10">
+                    <BadgeCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" title="Verified Expert Educator" />
+                  </div>
+                )}
               </div>
+              
+              {/* 🚀 Show Name & Date ALWAYS, but shrink text heavily if compact */}
               <div className="flex flex-col min-w-0 pr-1">
                 <div className="flex items-center gap-1.5">
-                   <span className="text-[11px] font-extrabold truncate text-white/90">{note.user?.name || "Unknown"}</span>
-                   {/* 🚀 VERIFIED EDUCATOR BADGE */}
-                   {note.user?.isVerifiedEducator && (
+                   <span className={`${isCompact ? 'text-[10px]' : 'text-[11px]'} font-extrabold truncate text-white/90 transition-all`}>
+                     {note.user?.name || "Unknown"}
+                   </span>
+                   {!isCompact && note.user?.isVerifiedEducator && (
                        <BadgeCheck className="w-3 h-3 text-blue-400 shrink-0" title="Verified Expert Educator" />
                    )}
                 </div>
-                <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest mt-[1px] truncate block w-full">{formatDate(note.uploadDate)}</span>
+                <span className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} text-gray-400 font-black uppercase tracking-widest mt-[1px] truncate block w-full transition-all`}>
+                  {formatDate(note.uploadDate)}
+                </span>
               </div>
             </div>
 
@@ -314,30 +353,38 @@ export default function NoteCard({ note, priority = false }) {
               disabled={isDownloading}
               onClick={handleDownload}
               aria-label={hasAccess ? `Download ${note.title}` : `Unlock ${note.title}`}
-              className="group relative h-9 rounded-full px-4 gap-1.5 shrink-0
+              className={`group relative h-9 rounded-full shrink-0
                 bg-cyan-500/10 border border-cyan-500/30 text-cyan-300
                 font-black uppercase tracking-widest text-[10px]
                 transition-all duration-300 transform-gpu will-change-transform
                 hover:bg-cyan-400 hover:text-black hover:border-cyan-300
                 hover:shadow-[0_22px_60px_-30px_rgba(34,211,238,0.85)]
-                active:scale-95 overflow-hidden"
+                active:scale-95 overflow-hidden
+                ${isCompact ? 'w-9 px-0 flex items-center justify-center' : 'px-4 flex items-center gap-1.5'}`}
             >
               <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(700px_circle_at_30%_20%,rgba(255,255,255,0.20),transparent_55%)]" />
-              <span className="relative z-10 inline-flex items-center gap-1.5">
+              <span className="relative z-10 flex items-center justify-center">
                 {isDownloading ? (
                   <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <>
                     {hasAccess ? (
-                      <><Download aria-hidden="true" className="h-3.5 w-3.5" /> <span>Get</span></>
+                      <>
+                        <Download aria-hidden="true" className="h-3.5 w-3.5" /> 
+                        {!isCompact && <span className="ml-1.5">Get</span>}
+                      </>
                     ) : (
-                      <><Lock aria-hidden="true" className="h-3.5 w-3.5 text-emerald-400 group-hover:text-black" /> <span>Unlock</span></>
+                      <>
+                        <Lock aria-hidden="true" className="h-3.5 w-3.5 text-emerald-400 group-hover:text-black" /> 
+                        {!isCompact && <span className="ml-1.5">Unlock</span>}
+                      </>
                     )}
                   </>
                 )}
               </span>
             </Button>
           </div>
+
         </div>
       </div>
     </Card>

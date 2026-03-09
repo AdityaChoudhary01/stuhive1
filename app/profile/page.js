@@ -5,6 +5,7 @@ import ProfileDashboard from "@/components/profile/ProfileDashboard";
 import { getUserProfile, getUserNotes, getSavedNotes } from "@/actions/user.actions";
 import { getBlogsForUser } from "@/actions/blog.actions";
 import { getUserCollections } from "@/actions/collection.actions";
+import { getUserReports } from "@/actions/report.actions"; // 🚀 Imported
 
 // ✅ PERFORMANCE FIX: Enforces strict dynamic rendering for private routes
 export const dynamic = "force-dynamic";
@@ -22,12 +23,13 @@ export default async function ProfilePage() {
   }
 
   // Fetch all user data in parallel for maximum speed
-  const [userProfile, userNotesRes, savedNotesRes, myBlogs, userCollections] = await Promise.all([
+  const [userProfile, userNotesRes, savedNotesRes, myBlogs, userCollections, reportsRes] = await Promise.all([
     getUserProfile(session.user.id),
     getUserNotes(session.user.id),
     getSavedNotes(session.user.id), 
     getBlogsForUser(session.user.id),
-    getUserCollections(session.user.id)
+    getUserCollections(session.user.id),
+    getUserReports() // 🚀 Parallel fetch
   ]);
 
   if (!userProfile) {
@@ -63,7 +65,8 @@ export default async function ProfilePage() {
     ...col,
     _id: col._id.toString(),
     user: col.user?.toString(),
-    notes: col.notes?.map(n => n.toString()) || [],
+    notes: Array.isArray(col.notes) ? col.notes.map(n => n.toString()) : [],
+    purchasedBy: Array.isArray(col.purchasedBy) ? col.purchasedBy.map(p => p.toString()) : [],
     createdAt: col.createdAt ? new Date(col.createdAt).toISOString() : fallbackDate,
   }));
 
@@ -75,11 +78,18 @@ export default async function ProfilePage() {
     createdAt: blog.createdAt ? new Date(blog.createdAt).toISOString() : fallbackDate,
   }));
 
+  // 🚀 SERIALIZE REPORTS
+  const serializedReports = (reportsRes.reports || []).map(report => ({
+    ...report,
+    _id: report._id.toString(),
+    reporter: report.reporter?.toString(),
+    targetNote: report.targetNote ? { ...report.targetNote, _id: report.targetNote._id.toString() } : null,
+    targetBundle: report.targetBundle ? { ...report.targetBundle, _id: report.targetBundle._id.toString() } : null,
+    createdAt: report.createdAt ? new Date(report.createdAt).toISOString() : fallbackDate,
+  }));
+
   return (
     <main className="min-h-screen bg-background pt-20">
-      {/* ✅ ACCESSIBILITY FIX: Adding an invisible H1 to the layout so that 
-        the internal profile component headings (H2/H3) follow sequence perfectly. 
-      */}
       <h1 className="sr-only">My Dashboard</h1>
 
       <ProfileDashboard 
@@ -88,6 +98,7 @@ export default async function ProfilePage() {
         initialSavedNotes={serializedSavedNotes} 
         initialMyBlogs={serializedMyBlogs} 
         initialCollections={serializedCollections}
+        initialReports={serializedReports} // 🚀 Pass to component
       />
     </main>
   );

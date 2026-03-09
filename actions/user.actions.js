@@ -4,6 +4,7 @@ import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
 import Note from "@/lib/models/Note";
 import Blog from "@/lib/models/Blog";
+import Collection from "@/lib/models/Collection"; // 🚀 Added to fetch bundles
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -157,25 +158,38 @@ export async function getSavedNotes(userId, page = 1, limit = 10) {
 }
 
 /**
- * UPDATE PROFILE (With R2 Auto-Delete for Avatar)
+ * UPDATE PROFILE (With Admin Protection & R2 Auto-Delete)
  */
 export async function updateProfile(userId, data) {
   await connectDB();
   try {
+    const targetUser = await User.findById(userId);
+    if (!targetUser) return { success: false, error: "User not found" };
+
+    // 🚀 ADMIN IMPERSONATION PROTECTION
+    if (data.name && data.name.toLowerCase().includes('admin')) {
+      // Only allow if their email exactly matches the Root Admin email
+      if (targetUser.email !== process.env.NEXT_PUBLIC_MAIN_ADMIN_EMAIL) {
+        return { 
+          success: false, 
+          error: "The term 'Admin' is reserved for system administrators and cannot be used in your name." 
+        };
+      }
+    }
+
     // ✅ R2 CLEANUP: If profile update includes a new avatarKey, delete the old one
     if (data.avatarKey) {
-        const currentUser = await User.findById(userId);
-        if (currentUser.avatarKey && currentUser.avatarKey !== data.avatarKey) {
-            await deleteFileFromR2(currentUser.avatarKey);
+        if (targetUser.avatarKey && targetUser.avatarKey !== data.avatarKey) {
+            await deleteFileFromR2(targetUser.avatarKey);
         }
     }
 
-    const user = await User.findByIdAndUpdate(userId, data, { new: true }).select('-password').lean();
+    const updatedUser = await User.findByIdAndUpdate(userId, data, { new: true }).select('-password').lean();
     
     revalidatePath('/profile');
     revalidatePath(`/profile/${userId}`);
     
-    return { success: true, user: JSON.parse(JSON.stringify(user)) };
+    return { success: true, user: JSON.parse(JSON.stringify(updatedUser)) };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -349,6 +363,7 @@ export async function updateLastSeen(userId) {
 
 /**
  * 🚀 FETCH USER'S PURCHASED PREMIUM NOTES
+ * Includes 'isArchived' to ensure permanent access even after author deletion.
  */
 export async function getPurchasedNotes() {
   await connectDB();
@@ -356,14 +371,13 @@ export async function getPurchasedNotes() {
   if (!session) return { success: false, error: "Unauthorized", notes: [] };
 
   try {
-    // Find the user and populate the 'purchasedNotes' array with the full Note data
+    // Find the user and populate the 'purchasedNotes' array with full Note data
     const user = await User.findById(session.user.id)
       .populate({
         path: 'purchasedNotes',
         populate: { 
             path: 'user', 
-            // 🚀 THE FIX: Added isVerifiedEducator
-            select: 'name avatar isVerifiedEducator' // We need the author's details for the NoteCard
+            select: 'name avatar isVerifiedEducator' 
         }
       })
       .lean();
@@ -372,20 +386,88 @@ export async function getPurchasedNotes() {
         return { success: true, notes: [] };
     }
 
-    // Serialize the data so Next.js Client Components don't throw errors
+    // Serialize data and ensure 'isArchived' is passed to the UI
     const safeNotes = user.purchasedNotes.map(n => ({
       ...n,
       _id: n._id.toString(),
       user: n.user ? { ...n.user, _id: n.user._id.toString() } : null,
+      isArchived: n.isArchived || false, // 🛡️ CRITICAL: Allow UI to show "Archived" badge
       uploadDate: n.uploadDate ? new Date(n.uploadDate).toISOString() : new Date().toISOString(),
       createdAt: n.createdAt ? new Date(n.createdAt).toISOString() : new Date().toISOString(),
       updatedAt: n.updatedAt ? new Date(n.updatedAt).toISOString() : new Date().toISOString(),
-      reviews: [] // Keep lightweight
+      reviews: [] 
     }));
 
     return { success: true, notes: safeNotes };
   } catch (error) {
     console.error("Error fetching purchased notes:", error);
     return { success: false, error: error.message, notes: [] };
+  }
+}
+
+/**
+ * 🚀 FETCH USER'S PURCHASED ITEMS (WITH SNAPSHOT PROTECTION)
+ * Reads from the immutable Bundle Snapshots so buyers never lose files.
+ */
+export async function getPurchasedItems() {
+  await connectDB();
+  const session = await getServerSession(authOptions);
+  if (!session) return { success: false, notes: [], bundles: [] };
+
+  try {
+    // 1. Fetch user and populate BOTH notes and the bundle objects inside the array
+    const user = await User.findById(session.user.id)
+      .populate({
+        path: 'purchasedNotes',
+        populate: { path: 'user', select: 'name avatar isVerifiedEducator' }
+      })
+      .populate({
+        // 🚀 CRITICAL FIX: The path must point to the 'bundle' field inside the 'purchasedBundles' array objects
+        path: 'purchasedBundles.bundle',
+        populate: { path: 'user', select: 'name avatar isVerifiedEducator' }
+      })
+      .lean();
+
+    if (!user) return { success: false, notes: [], bundles: [] };
+
+    // 2. Serialize purchased individual notes
+    const safeNotes = JSON.parse(JSON.stringify(user.purchasedNotes || []));
+
+    // 3. 🚀 BUNDLE SNAPSHOT RECONSTRUCTION
+    // We map through purchasedBundles and manually inject the snapshot version
+    const safeBundles = (user.purchasedBundles || []).map(pb => {
+      // If for some reason the bundle document was deleted from DB, skip it
+      if (!pb.bundle) return null;
+
+      const bundleDoc = pb.bundle;
+      
+      return {
+        ...bundleDoc,
+        _id: bundleDoc._id.toString(),
+        user: bundleDoc.user ? {
+          ...bundleDoc.user,
+          _id: bundleDoc.user._id.toString()
+        } : null,
+        
+        // 🚀 THIS FIXES THE "0 BUNDLES" / "0 NOTES" ISSUE:
+        // We overwrite the bundle's 'notes' array with the 'notesSnapshot' 
+        // that was saved in the User document at the time of purchase.
+        notes: pb.notesSnapshot && pb.notesSnapshot.length > 0 
+          ? pb.notesSnapshot.map(id => id.toString()) 
+          : (bundleDoc.notes ? bundleDoc.notes.map(n => n.toString()) : []),
+          
+        purchasedAt: pb.purchasedAt ? new Date(pb.purchasedAt).toISOString() : null,
+        isArchived: bundleDoc.isArchived || false
+      };
+    }).filter(Boolean); // Remove nulls (deleted bundles)
+
+    return { 
+      success: true, 
+      notes: safeNotes, 
+      bundles: JSON.parse(JSON.stringify(safeBundles)) 
+    };
+  } catch (error) {
+    console.error("Error fetching purchased items:", error);
+    return { success: false, notes: [], bundles: [] };
   }
 }

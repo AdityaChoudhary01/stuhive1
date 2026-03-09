@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { FolderHeart, ArrowRight, BookOpen, Loader2, ArrowDown, Globe, User, Lock, GraduationCap, Trophy, School, Lightbulb, BadgeCheck } from "lucide-react"; // 🚀 Added BadgeCheck
+import { FolderHeart, ArrowRight, BookOpen, Loader2, ArrowDown, Globe, User, Lock, GraduationCap, Trophy, School, Lightbulb, BadgeCheck, Crown } from "lucide-react"; // 🚀 Added Crown
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getPublicCollections, getUserCollections } from "@/actions/collection.actions";
@@ -204,8 +204,15 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
   const authorAvatar = col.user?.avatar || sessionUser?.avatar || sessionUser?.image;
 
   return (
-    <div itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem" className="h-full">
+    <div itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem" className="h-full relative">
       <meta itemProp="position" content={index + 1} />
+
+      {/* 🚀 PREMIUM BADGE OVERLAY */}
+      {col.isPremium && (
+        <div className="absolute top-3 right-3 z-20 flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg shadow-yellow-500/20">
+            <Crown size={10} className="drop-shadow-sm" aria-hidden="true" /> ₹{col.price}
+        </div>
+      )}
 
       <Link
         href={targetUrl}
@@ -213,27 +220,27 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
         title={isPersonal ? `Manage ${col.name}` : `Access ${col.name}`}
       >
         <article
-          className="flex flex-col justify-between h-full p-4 sm:p-8 bg-white/[0.02] border border-white/10 backdrop-blur-xl
+          className={`flex flex-col justify-between h-full p-4 sm:p-8 bg-white/[0.02] backdrop-blur-xl
             rounded-[1.2rem] sm:rounded-3xl relative overflow-hidden
             transition-all duration-500 transform-gpu will-change-transform
-            hover:bg-white/[0.04] hover:border-white/20 hover:-translate-y-1
-            hover:shadow-[0_30px_90px_-70px_rgba(34,211,238,0.55)]
+            hover:bg-white/[0.04] hover:-translate-y-1
+            ${col.isPremium ? 'border border-yellow-500/30 hover:border-yellow-400/50 hover:shadow-[0_30px_90px_-50px_rgba(234,179,8,0.25)]' : 'border border-white/10 hover:border-white/20 hover:shadow-[0_30px_90px_-70px_rgba(34,211,238,0.55)]'}
             before:content-[''] before:absolute before:inset-0 before:rounded-[inherit] before:p-[1px]
             before:bg-gradient-to-br before:from-white/14 before:via-white/0 before:to-white/6
             before:opacity-0 group-hover:before:opacity-100 before:transition-opacity before:duration-500
             after:content-[''] after:absolute after:inset-0 after:rounded-[inherit] after:opacity-[0.06] after:pointer-events-none
             after:[background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)]
-            after:[background-size:20px_20px]"
+            after:[background-size:20px_20px]`}
           itemProp="item"
           itemScope
           itemType="https://schema.org/CollectionPage"
         >
-          <div className="absolute top-0 right-0 w-40 h-40 bg-cyan-500/10 blur-[55px] opacity-0 group-hover:opacity-100 transition-opacity duration-500" aria-hidden="true" />
+          <div className={`absolute top-0 right-0 w-40 h-40 blur-[55px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${col.isPremium ? 'bg-yellow-500/20' : 'bg-cyan-500/10'}`} aria-hidden="true" />
 
           <div className="relative z-10">
             <header className="flex items-start justify-between mb-4 sm:mb-6">
               <div className="flex flex-col gap-3">
-                <div className="p-2 sm:p-3 bg-white/5 rounded-xl text-cyan-300 ring-1 ring-white/10 group-hover:scale-110 group-hover:bg-cyan-500/10 transition-all duration-300 flex items-center justify-center w-fit">
+                <div className={`p-2 sm:p-3 bg-white/5 rounded-xl ring-1 ring-white/10 group-hover:scale-110 transition-all duration-300 flex items-center justify-center w-fit ${col.isPremium ? 'text-yellow-400 group-hover:bg-yellow-500/10' : 'text-cyan-300 group-hover:bg-cyan-500/10'}`}>
                   <FolderHeart size={20} className="sm:w-6 sm:h-6" strokeWidth={1.5} aria-hidden="true" />
                 </div>
 
@@ -243,15 +250,17 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5 px-2 py-1 sm:px-2.5 bg-white/5 border border-white/10 rounded-full h-fit shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 motion-safe:animate-pulse" aria-hidden="true" />
-                <span className="text-[8px] sm:text-[10px] font-black text-gray-300">
-                  {col.notes?.length || 0} <span className="hidden sm:inline">Files</span>
-                </span>
-              </div>
+              {!col.isPremium && (
+                <div className="flex items-center gap-1.5 px-2 py-1 sm:px-2.5 bg-white/5 border border-white/10 rounded-full h-fit shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 motion-safe:animate-pulse" aria-hidden="true" />
+                  <span className="text-[8px] sm:text-[10px] font-black text-gray-300">
+                    {col.notes?.length || 0} <span className="hidden sm:inline">Files</span>
+                  </span>
+                </div>
+              )}
             </header>
 
-            <h3 className="text-sm sm:text-xl font-black mb-2 sm:mb-3 leading-snug tracking-tight text-white group-hover:text-cyan-300 transition-colors line-clamp-2" itemProp="name">
+            <h3 className={`text-sm sm:text-xl font-black mb-2 sm:mb-3 leading-snug tracking-tight text-white transition-colors line-clamp-2 ${col.isPremium ? 'group-hover:text-yellow-400' : 'group-hover:text-cyan-300'}`} itemProp="name">
               {col.name}
             </h3>
 
@@ -287,7 +296,7 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
               </div>
             </div>
 
-            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-white/5 text-gray-400 group-hover:bg-cyan-500 group-hover:text-black transition-all shrink-0 ring-1 ring-white/10">
+            <div className={`flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-white/5 text-gray-400 transition-all shrink-0 ring-1 ring-white/10 ${col.isPremium ? 'group-hover:bg-yellow-500 group-hover:text-black' : 'group-hover:bg-cyan-500 group-hover:text-black'}`}>
               <ArrowRight size={12} className="sm:w-3.5 sm:h-3.5" aria-hidden="true" />
             </div>
           </footer>

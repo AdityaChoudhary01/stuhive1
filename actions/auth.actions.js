@@ -17,6 +17,18 @@ export async function registerUser(formData) {
       return { success: false, error: "All fields are required" };
     }
 
+    // 🚀 ADMIN IMPERSONATION PROTECTION (Strict Check)
+    // Blocks "admin", "Admin", "Super Admin", "aDmIn", etc.
+    if (name.toLowerCase().includes('admin')) {
+      // Only allow if their email exactly matches the Root Admin email in your .env file
+      if (email !== process.env.NEXT_PUBLIC_MAIN_ADMIN_EMAIL) {
+        return { 
+          success: false, 
+          error: "The term 'Admin' is reserved and cannot be used in your name." 
+        };
+      }
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {

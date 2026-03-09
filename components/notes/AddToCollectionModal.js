@@ -6,10 +6,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label"; // 🚀 Added Label
-import { FolderPlus, Plus, Check, Loader2, Globe, Lock, School, Trophy, BookOpen, Lightbulb } from "lucide-react";
+import { Label } from "@/components/ui/label"; 
+import { FolderPlus, Plus, Check, Loader2, Globe, Lock, School, Trophy, BookOpen, Lightbulb, Crown, AlertCircle } from "lucide-react"; 
 import { useToast } from "@/hooks/use-toast";
-import { getUserCollections, createCollection, addNoteToCollection, updateCollection } from "@/actions/collection.actions";
+import { getUserCollections, createCollection, addNoteToCollection } from "@/actions/collection.actions";
 
 // 🚀 DYNAMIC LABEL CONFIGURATION (Synced with Notes Upload)
 const CATEGORY_CONFIG = {
@@ -27,7 +27,7 @@ const CATEGORY_CONFIG = {
   }
 };
 
-export default function AddToCollectionModal({ noteId }) {
+export default function AddToCollectionModal({ noteId, noteData }) {
   const { data: session } = useSession();
   const { toast } = useToast();
   
@@ -39,12 +39,23 @@ export default function AddToCollectionModal({ noteId }) {
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [newColName, setNewColName] = useState("");
   const [newColDesc, setNewColDesc] = useState("");
-  const [newColCategory, setNewColCategory] = useState("University"); // 🚀 ADDED: Category State
+  const [newColCategory, setNewColCategory] = useState("University"); 
   const [newColUniversity, setNewColUniversity] = useState(""); 
   const [newColVisibility, setNewColVisibility] = useState("private");
+  
+  // 🚀 PREMIUM STATE
+  const [isPremium, setIsPremium] = useState(false);
+  const [price, setPrice] = useState("");
+
   const [creating, setCreating] = useState(false);
 
   const labels = CATEGORY_CONFIG[newColCategory];
+
+  // 🛡️ BUNDLE PROTECTION: Check if current note allows being in a premium bundle
+  // Premium bundles require the starting note to be a Paid note owned by the user.
+  const isNotePaid = noteData?.isPaid && noteData?.price > 0;
+  const isNoteOwner = session?.user?.id === noteData?.user?._id?.toString() || session?.user?.id === noteData?.user?.toString();
+  const canStartPremiumBundle = isNotePaid && isNoteOwner;
 
   // Fetch collections when modal opens
   useEffect(() => {
@@ -64,31 +75,36 @@ export default function AddToCollectionModal({ noteId }) {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!newColName.trim()) return;
+
+    if (isPremium && (!price || Number(price) <= 0)) {
+        return toast({ title: "Price Required", description: "Premium bundles must have a valid price.", variant: "destructive" });
+    }
+
     setCreating(true);
     
-    // 1. Create base collection with category
-    const res = await createCollection(newColName, session.user.id, newColCategory);
+    // 🚀 Use the updated single-step createCollection action
+    const res = await createCollection({
+        name: newColName,
+        description: newColDesc,
+        category: newColCategory,
+        university: newColUniversity,
+        visibility: isPremium ? 'public' : newColVisibility, // Premium is always public
+        isPremium: isPremium,
+        price: isPremium ? Number(price) : 0
+    }, session.user.id);
     
     if (res.success) {
-      // 2. Immediately update it with Description, Visibility & University
       let finalCollection = res.collection;
-      const updateRes = await updateCollection(
-        res.collection._id, 
-        { 
-          description: newColDesc, 
-          visibility: newColVisibility,
-          university: newColUniversity,
-          category: newColCategory // Ensure category is strictly applied
-        }, 
-        session.user.id
-      );
-      if (updateRes.success) finalCollection = updateRes.collection;
-
       setCollections([finalCollection, ...collections]);
       
       // Auto-add the current note to this newly created collection
       if (noteId) {
-          await addNoteToCollection(finalCollection._id, noteId, session.user.id);
+          const addRes = await addNoteToCollection(finalCollection._id, noteId, session.user.id);
+          if(!addRes.success) {
+              toast({ title: "Bundle Created, but Note Failed", description: addRes.error, variant: "destructive" });
+              setCreating(false);
+              return;
+          }
       }
       
       // Reset State
@@ -97,10 +113,12 @@ export default function AddToCollectionModal({ noteId }) {
       setNewColUniversity("");
       setNewColCategory("University");
       setNewColVisibility("private");
+      setIsPremium(false);
+      setPrice("");
       setIsCreatingNew(false);
       setOpen(false);
       
-      toast({ title: "Success", description: "Collection created and note added!" });
+      toast({ title: "Success", description: "Archive created and note added!" });
     } else {
       toast({ title: "Error", description: res.error, variant: "destructive" });
     }
@@ -113,7 +131,7 @@ export default function AddToCollectionModal({ noteId }) {
       toast({ title: "Saved!", description: "Note added to collection." });
       setOpen(false); 
     } else {
-      toast({ title: "Error", description: res.error, variant: "destructive" });
+      toast({ title: "Failed", description: res.error, variant: "destructive" });
     }
   };
 
@@ -165,7 +183,8 @@ export default function AddToCollectionModal({ noteId }) {
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 <span className="font-bold text-sm text-white/90">{col.name}</span>
-                                                {col.visibility === 'public' ? <Globe className="w-3 h-3 text-cyan-400" /> : <Lock className="w-3 h-3 text-gray-500" />}
+                                                {/* 🚀 PREMIUM BADGE IN LIST */}
+                                                {col.isPremium ? <Crown className="w-3 h-3 text-yellow-400" /> : col.visibility === 'public' ? <Globe className="w-3 h-3 text-cyan-400" /> : <Lock className="w-3 h-3 text-gray-500" />}
                                             </div>
                                             {isAdded ? <Check className="w-4 h-4 text-green-500" /> : <Plus className="w-4 h-4 text-gray-400" />}
                                         </div>
@@ -183,7 +202,48 @@ export default function AddToCollectionModal({ noteId }) {
             ) : (
                 <form onSubmit={handleCreate} className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     
-                    {/* 🚀 NEW: Category Toggles */}
+                    {/* 🚀 PREMIUM TOGGLE SECTION */}
+                    <div className={`p-4 rounded-xl border space-y-3 ${isPremium ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-white/5 bg-white/[0.02]'}`}>
+                        <div className="flex items-center justify-between">
+                            <label className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 cursor-pointer ${!canStartPremiumBundle ? 'text-gray-600' : 'text-yellow-400'}`}>
+                                <Crown size={14} /> Sell as Premium Bundle
+                            </label>
+                            <input 
+                                type="checkbox" 
+                                checked={isPremium} 
+                                disabled={!canStartPremiumBundle}
+                                onChange={(e) => setIsPremium(e.target.checked)}
+                                className="w-4 h-4 accent-yellow-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                            />
+                        </div>
+
+                        {/* 🛡️ PROTECTION TOOLTIP */}
+                        {!canStartPremiumBundle && (
+                          <div className="flex items-start gap-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                            <AlertCircle size={12} className="text-red-400 mt-0.5 shrink-0" />
+                            <p className="text-[9px] text-red-400 font-bold uppercase leading-tight">
+                              {!isNoteOwner ? "Only authors can create premium bundles." : "Note must be set to 'Paid' first."}
+                            </p>
+                          </div>
+                        )}
+
+                        {isPremium && (
+                            <div className="animate-in slide-in-from-top-2">
+                                <label className="text-[10px] text-gray-400 mb-1 block">Bundle Price (₹ INR)</label>
+                                <Input 
+                                    type="number" 
+                                    min="1" 
+                                    placeholder="e.g. 499" 
+                                    value={price}
+                                    onChange={(e) => setPrice(e.target.value)}
+                                    className="bg-black/40 border-yellow-500/30 focus-visible:ring-yellow-500 text-yellow-400 font-bold"
+                                    required={isPremium}
+                                />
+                                <p className="text-[9px] text-yellow-500/70 mt-2">Premium bundles will automatically be set to Public. You can only add notes uploaded by you to this bundle.</p>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="space-y-2">
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Bundle Type</label>
                       <div className="grid grid-cols-2 gap-2">
@@ -238,31 +298,33 @@ export default function AddToCollectionModal({ noteId }) {
                         />
                     </div>
 
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Visibility</label>
-                        <div className="grid grid-cols-2 gap-2">
-                            <Button 
-                                type="button" 
-                                variant={newColVisibility === 'private' ? 'default' : 'outline'}
-                                className={newColVisibility === 'private' ? 'bg-white text-black font-bold' : 'border-white/10 text-gray-400 hover:text-white'}
-                                onClick={() => setNewColVisibility('private')}
-                            >
-                                <Lock className="w-4 h-4 mr-2" /> Private
-                            </Button>
-                            <Button 
-                                type="button" 
-                                variant={newColVisibility === 'public' ? 'default' : 'outline'}
-                                className={newColVisibility === 'public' ? 'bg-cyan-500 text-black font-bold hover:bg-cyan-400' : 'border-white/10 text-gray-400 hover:text-white'}
-                                onClick={() => setNewColVisibility('public')}
-                            >
-                                <Globe className="w-4 h-4 mr-2" /> Public
-                            </Button>
+                    {!isPremium && (
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Visibility</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button 
+                                    type="button" 
+                                    variant={newColVisibility === 'private' ? 'default' : 'outline'}
+                                    className={newColVisibility === 'private' ? 'bg-white text-black font-bold' : 'border-white/10 text-gray-400 hover:text-white'}
+                                    onClick={() => setNewColVisibility('private')}
+                                >
+                                    <Lock className="w-4 h-4 mr-2" /> Private
+                                </Button>
+                                <Button 
+                                    type="button" 
+                                    variant={newColVisibility === 'public' ? 'default' : 'outline'}
+                                    className={newColVisibility === 'public' ? 'bg-cyan-500 text-black font-bold hover:bg-cyan-400' : 'border-white/10 text-gray-400 hover:text-white'}
+                                    onClick={() => setNewColVisibility('public')}
+                                >
+                                    <Globe className="w-4 h-4 mr-2" /> Public
+                                </Button>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     <div className="flex gap-2 pt-2">
                         <Button type="button" variant="ghost" className="flex-1 text-gray-400 hover:text-white" onClick={() => setIsCreatingNew(false)}>Cancel</Button>
-                        <Button type="submit" className="flex-1 bg-cyan-500 text-black font-bold hover:bg-cyan-400" disabled={creating || !newColName.trim()}>
+                        <Button type="submit" className={`flex-1 font-bold ${isPremium ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-cyan-500 hover:bg-cyan-400 text-black'}`} disabled={creating || !newColName.trim()}>
                             {creating ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Check className="w-4 h-4 mr-2" />} Create & Save
                         </Button>
                     </div>

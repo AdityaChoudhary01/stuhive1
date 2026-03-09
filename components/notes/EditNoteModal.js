@@ -12,11 +12,11 @@ import { getUploadUrl } from "@/actions/upload.actions";
 import { generatePdfThumbnail } from "@/utils/generateThumbnail"; 
 import { 
   Loader2, Save, UploadCloud, FileText, BookOpen, 
-  School, GraduationCap, CalendarDays, Trophy, Lightbulb 
+  School, GraduationCap, CalendarDays, Trophy, Lightbulb, Lock, AlertCircle, ShieldCheck
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation"; 
-import { PDFDocument } from 'pdf-lib'; // 🚀 NEW: Import pdf-lib
+import { PDFDocument } from 'pdf-lib'; 
 
 const CATEGORY_CONFIG = {
   "University": {
@@ -68,7 +68,11 @@ export default function EditNoteModal({ note, onClose }) {
 
   const labels = CATEGORY_CONFIG[formData.category];
 
-  // 🚀 NEW: Frontend PDF Slicer Logic
+  // 🛡️ FRAUD PROTECTION: Check if file editing should be locked
+  const isAdmin = session?.user?.role === "admin";
+  const hasBuyers = note?.salesCount > 0;
+  const isFileLocked = hasBuyers && !isAdmin;
+
   const generatePreviewPdf = async (originalFile, pagesToKeep) => {
     try {
       const arrayBuffer = await originalFile.arrayBuffer();
@@ -89,6 +93,8 @@ export default function EditNoteModal({ note, onClose }) {
   };
 
   const handleFileChange = (e) => {
+    if (isFileLocked) return; // Safeguard
+
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const allowedTypes = [
@@ -123,7 +129,7 @@ export default function EditNoteModal({ note, onClose }) {
     try {
         let fileData = null;
 
-        if (newFile) {
+        if (newFile && !isFileLocked) {
             setUploadStatus("Processing File...");
             let thumbnailFile = null;
             let previewFile = null;
@@ -202,6 +208,19 @@ export default function EditNoteModal({ note, onClose }) {
             </DialogDescription>
           </DialogHeader>
           
+          {/* 🛡️ PROTECTION BANNER */}
+          {isFileLocked && (
+            <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
+              <Lock className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-amber-500 uppercase tracking-tight">Content Integrity Protection</p>
+                <p className="text-xs text-amber-500/80 leading-relaxed">
+                  This note has <b>{note.salesCount} active buyer(s)</b>. To protect customers, you cannot replace the document or change the price type. Metadata updates are still allowed.
+                </p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-8">
               
               <div className="space-y-3">
@@ -255,35 +274,40 @@ export default function EditNoteModal({ note, onClose }) {
                   </div>
               </div>
 
-              <div className="p-4 md:p-5 border border-emerald-500/20 bg-emerald-500/5 rounded-2xl space-y-4">
-                <Label className="text-xs font-bold uppercase tracking-widest text-emerald-500 flex items-center gap-2">
-                  Monetization Settings
+              <div className={`p-4 md:p-5 border rounded-2xl space-y-4 transition-colors ${isFileLocked ? 'border-amber-500/20 bg-amber-500/5 opacity-80' : 'border-emerald-500/20 bg-emerald-500/5'}`}>
+                <Label className={`text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${isFileLocked ? 'text-amber-500' : 'text-emerald-500'}`}>
+                  {isFileLocked ? <ShieldCheck className="w-4 h-4" /> : 'Monetization Settings'}
+                  {isFileLocked && 'Locked Pricing'}
                 </Label>
+                
                 <div className="flex items-center gap-3">
-                  <Button type="button" variant={!formData.isPaid ? "default" : "outline"} onClick={() => setFormData({...formData, isPaid: false, price: 0})} className={`flex-1 h-10 text-xs md:text-sm ${!formData.isPaid ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"}`}>Free Resource</Button>
-                  <Button type="button" variant={formData.isPaid ? "default" : "outline"} onClick={() => setFormData({...formData, isPaid: true, price: formData.price || 49})} className={`flex-1 h-10 text-xs md:text-sm ${formData.isPaid ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"}`}>Premium Note</Button>
+                  <Button type="button" disabled={isFileLocked} variant={!formData.isPaid ? "default" : "outline"} onClick={() => setFormData({...formData, isPaid: false, price: 0})} className={`flex-1 h-10 text-xs md:text-sm ${!formData.isPaid ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"}`}>Free Resource</Button>
+                  <Button type="button" disabled={isFileLocked} variant={formData.isPaid ? "default" : "outline"} onClick={() => setFormData({...formData, isPaid: true, price: formData.price || 49})} className={`flex-1 h-10 text-xs md:text-sm ${formData.isPaid ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"}`}>Premium Note</Button>
                 </div>
+
                 {formData.isPaid && (
                   <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 pt-2">
                     <div className="space-y-1.5">
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Price (INR)</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">₹</span>
-                        <Input type="number" min="10" max="1000" value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="pl-7 h-10 bg-black/50 border-emerald-500/30 focus-visible:ring-emerald-500 rounded-xl" />
+                        <Input type="number" disabled={isFileLocked} min="10" max="1000" value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="pl-7 h-10 bg-black/50 border-emerald-500/30 focus-visible:ring-emerald-500 rounded-xl" />
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Preview Pages</Label>
-                      <Input type="number" min="1" max="10" value={formData.previewPages} onChange={e => setFormData({...formData, previewPages: Number(e.target.value)})} className="h-10 bg-black/50 border-emerald-500/30 focus-visible:ring-emerald-500 rounded-xl" />
+                      <Input type="number" disabled={isFileLocked} min="1" max="10" value={formData.previewPages} onChange={e => setFormData({...formData, previewPages: Number(e.target.value)})} className="h-10 bg-black/50 border-emerald-500/30 focus-visible:ring-emerald-500 rounded-xl" />
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="pt-2">
-                  <Label className="text-xs font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400 mb-3 block">Replace Document (Optional)</Label>
-                  <div className="relative group border-2 border-dashed border-border rounded-[1.5rem] p-6 transition-all hover:border-indigo-500/50 hover:bg-indigo-500/5 bg-secondary/20 text-center cursor-pointer overflow-hidden">
-                      <input type="file" accept=".pdf,.docx,.pptx,.xlsx,.txt" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+              <div className={`pt-2 transition-opacity ${isFileLocked ? 'opacity-50 grayscale' : 'opacity-100'}`}>
+                  <Label className="text-xs font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400 mb-3 block flex items-center gap-2">
+                    Replace Document {isFileLocked && <Lock className="w-3 h-3 text-amber-500" />}
+                  </Label>
+                  <div className={`relative group border-2 border-dashed rounded-[1.5rem] p-6 transition-all bg-secondary/20 text-center overflow-hidden ${isFileLocked ? 'border-amber-500/20 cursor-not-allowed' : 'border-border hover:border-indigo-500/50 hover:bg-indigo-500/5 cursor-pointer'}`}>
+                      <input type="file" disabled={isFileLocked} accept=".pdf,.docx,.pptx,.xlsx,.txt" onChange={handleFileChange} className={`absolute inset-0 w-full h-full opacity-0 z-10 ${isFileLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`} />
                       {newFile ? (
                           <div className="flex flex-col items-center justify-center gap-2 animate-in fade-in zoom-in duration-300">
                               <div className="p-2 bg-indigo-500/20 rounded-full"><FileText className="w-6 h-6 text-indigo-400" /></div>
@@ -291,8 +315,10 @@ export default function EditNoteModal({ note, onClose }) {
                           </div>
                       ) : (
                           <div className="flex flex-col items-center gap-2 transform transition-transform group-hover:-translate-y-1">
-                              <div className="p-3 bg-secondary/50 rounded-full group-hover:bg-indigo-500/10 transition-colors"><UploadCloud className="w-6 h-6 text-muted-foreground group-hover:text-indigo-400 transition-colors" /></div>
-                              <span className="text-sm font-medium text-foreground/80">Tap to upload a new version</span>
+                              <div className="p-3 bg-secondary/50 rounded-full group-hover:bg-indigo-500/10 transition-colors">
+                                {isFileLocked ? <Lock className="w-6 h-6 text-amber-500" /> : <UploadCloud className="w-6 h-6 text-muted-foreground group-hover:text-indigo-400" />}
+                              </div>
+                              <span className="text-sm font-medium text-foreground/80">{isFileLocked ? 'Replacement Disabled' : 'Tap to upload a new version'}</span>
                               <span className="text-[10px] text-muted-foreground">Current: {note.fileName}</span>
                           </div>
                       )}

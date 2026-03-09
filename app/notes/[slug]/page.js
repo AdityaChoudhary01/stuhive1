@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { notFound, redirect } from "next/navigation"; 
 import Link from "next/link";
 import User from "@/lib/models/User"; // 🚀 Added to check purchases
+import Collection from "@/lib/models/Collection"; // 🚀 Added to check parent bundles for upsell
 
 // Components
 import ClientPDFLoader from "@/components/notes/ClientPDFLoader";
@@ -15,13 +16,14 @@ import AddToCollectionModal from "@/components/notes/AddToCollectionModal";
 import DownloadButton from "./DownloadButton"; 
 import SaveNoteHeart from "./SaveNoteHeart"; 
 import ViewCounter from "./ViewCounter";
-import BuyNoteButton from "./BuyNoteButton"; // 🚀 NEW COMPONENT
+import BuyNoteButton from "./BuyNoteButton"; 
+import ReportNoteModal from "@/components/notes/ReportNoteModal"; // 🚀 Added Report Modal
 
 // UI Components
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Download, Calendar, Eye, ShieldCheck, Info, HeartHandshake, BookOpen, GraduationCap, FileText, ChevronDown, Lock } from "lucide-react"; 
+import { Download, Calendar, Eye, ShieldCheck, Info, HeartHandshake, BookOpen, GraduationCap, FileText, ChevronDown, Lock, Crown, Tag, AlertTriangle } from "lucide-react"; 
 
 // Utils
 import { formatDate } from "@/lib/utils";
@@ -37,7 +39,11 @@ const R2_PUBLIC_URL = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "";
 export async function generateMetadata({ params }) {
   const resolvedParams = await params;
   const note = await getNoteBySlug(resolvedParams.slug); 
-  if (!note) return { title: "Note Not Found | StuHive", robots: "noindex, nofollow" };
+  
+  // 🛡️ FRAUD PROTECTION: If archived, prevent indexing so new users don't find it
+  if (!note || note.isArchived) {
+    return { title: "Note Not Found | StuHive", robots: "noindex, nofollow" };
+  }
 
   const ogImage = note.thumbnailKey 
     ? `${R2_PUBLIC_URL}/${note.thumbnailKey}` 
@@ -117,25 +123,45 @@ export default async function ViewNotePage({ params }) {
     redirect(`/notes/${note.slug}`);
   }
 
+  // 🚀 BUNDLE DETECTION LOGIC
+  const parentBundles = await Collection.find({ 
+    notes: note._id, 
+    isPremium: true, 
+    visibility: 'public' 
+  }).select('name price slug purchasedBy').lean();
+
   // 🚀 MARKETPLACE ACCESS LOGIC
   let hasPurchased = false;
+  let hasPurchasedViaBundle = false;
   
   if (session?.user) {
     const currentUser = await User.findById(session.user.id).select('purchasedNotes').lean();
+    
+    // Check direct purchase
     if (currentUser?.purchasedNotes?.map(id => id.toString()).includes(note._id.toString())) {
         hasPurchased = true;
     }
+
+    // Check if user purchased any bundle containing this note
+    hasPurchasedViaBundle = parentBundles.some(bundle => 
+      bundle.purchasedBy?.map(id => id.toString()).includes(session.user.id)
+    );
   }
 
   const isOwner = session?.user?.id === (note.user?._id?.toString() || note.user?.toString());
-  const canEdit = isOwner || session?.user?.role === 'admin';
+  const isAdmin = session?.user?.role === 'admin';
+  const canEdit = isOwner || isAdmin;
   
-  // Grant access if: free, purchased, uploader, or admin
-  const hasAccess = !note.isPaid || note.price === 0 || hasPurchased || isOwner || canEdit;
+  // Grant access if: free, purchased directly, purchased via bundle, uploader, or admin
+  const hasAccess = !note.isPaid || note.price === 0 || hasPurchased || hasPurchasedViaBundle || isOwner || isAdmin;
+
+  // 🛡️ PERMANENT ACCESS PROTECTION: If note is archived but user has NOT bought it, 404 for them.
+  // Buyers, Admins, and Owners can still see archived content.
+  if (note.isArchived && !hasAccess) {
+    notFound();
+  }
 
   // 🚀 SECURE KEY SELECTION
-  // If the user has access, fetch the full file.
-  // If not, try to fetch the preview file. If no preview exists, fallback to full (frontend will handle blurring/limits).
   const targetKey = hasAccess 
     ? note.fileKey 
     : (note.previewKey || note.fileKey);
@@ -222,7 +248,6 @@ export default async function ViewNotePage({ params }) {
 
   return (
     <main className="w-full px-3 md:px-8 mx-auto py-8 md:py-12 pt-24 md:pt-32 max-w-7xl relative" itemScope itemType="https://schema.org/CreativeWork">
-      {/* 🚀 INJECT RAZORPAY SCRIPT */}
       <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
       
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
@@ -240,6 +265,18 @@ export default async function ViewNotePage({ params }) {
       <article className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-12 relative z-10">
         
         <div className="xl:col-span-8 space-y-8 md:space-y-10">
+          
+          {/* 🛡️ ARCHIVE WARNING BANNER FOR BUYERS */}
+          {note.isArchived && hasAccess && (
+            <section className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-4 animate-in fade-in slide-in-from-top-4">
+              <AlertTriangle className="text-amber-500 w-6 h-6 shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-amber-500 uppercase tracking-tight">Archived Resource</p>
+                <p className="text-xs text-amber-500/80">The author has removed this note from the store. As a verified buyer, you maintain <b>Permanent Lifetime Access</b>.</p>
+              </div>
+            </section>
+          )}
+
           <header className="space-y-6">
             <nav className="flex flex-wrap items-center gap-2 md:gap-3" aria-label="Breadcrumb navigation">
                 <Link href={`/global-search?q=${encodeURIComponent(note.university)}`} title={`Search notes from ${note.university}`}>
@@ -284,12 +321,18 @@ export default async function ViewNotePage({ params }) {
                 </div>
             </div>
             
-            {/* 🚀 PRICE BADGE */}
-            {note.isPaid && note.price > 0 && (
-                <div className="inline-block px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 font-black text-lg tracking-wider">
-                   ₹{note.price} <span className="text-[10px] font-medium text-muted-foreground ml-2 uppercase tracking-widest">Lifetime Access</span>
-                </div>
-            )}
+            <div className="flex flex-wrap items-center gap-3">
+              {note.isPaid && note.price > 0 && (
+                  <div className="inline-block px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 font-black text-lg tracking-wider">
+                     ₹{note.price} <span className="text-[10px] font-medium text-muted-foreground ml-2 uppercase tracking-widest">Lifetime Access</span>
+                  </div>
+              )}
+              {parentBundles.length > 0 && !hasAccess && (
+                <Badge className="bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 px-3 py-1.5 font-bold animate-pulse">
+                  <Tag size={12} className="mr-1.5" /> Bundle Discount Available
+                </Badge>
+              )}
+            </div>
 
             <div className="flex flex-wrap items-center gap-4 md:gap-8 text-[11px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground bg-secondary/20 p-3 md:p-4 rounded-2xl border border-border w-fit">
                 <span className="flex items-center gap-1.5 md:gap-2" title="Upload Date">
@@ -311,7 +354,6 @@ export default async function ViewNotePage({ params }) {
              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 opacity-80" />
              
              <div className="min-h-[400px] md:min-h-[700px] bg-black/40 relative">
-               {/* 🚀 Pass maxPages to limit preview if unpaid */}
                <ClientPDFLoader 
                  url={signedUrl} 
                  fileType={note.fileType} 
@@ -319,15 +361,33 @@ export default async function ViewNotePage({ params }) {
                  maxPages={hasAccess ? null : note.previewPages || 3} 
                />
 
-               {/* 🚀 PAYWALL OVERLAY */}
                {!hasAccess && (
-                 <div className="absolute bottom-0 left-0 w-full h-56 bg-gradient-to-t from-black via-black/90 to-transparent flex flex-col items-center justify-end pb-8 z-50 px-4 text-center">
+                 <div className="absolute bottom-0 left-0 w-full h-auto min-h-[350px] bg-gradient-to-t from-black via-black/95 to-transparent flex flex-col items-center justify-end pb-12 z-50 px-4 text-center">
                     <Lock className="w-8 h-8 md:w-10 md:h-10 text-amber-400 mb-3" />
                     <h3 className="text-white font-black text-lg md:text-xl mb-2">Preview Reached</h3>
                     <p className="text-muted-foreground text-xs md:text-sm max-w-md mb-6">
                       Unlock the full document instantly to continue studying {note.subject}.
                     </p>
-                    <BuyNoteButton noteId={serializedNote._id} price={note.price} userEmail={session?.user?.email} />
+                    
+                    <div className="flex flex-col gap-4 w-full max-w-sm">
+                      <BuyNoteButton noteId={serializedNote._id} price={note.price} userEmail={session?.user?.email} />
+                      
+                      {parentBundles.length > 0 && (
+                        <div className="relative group/bundle">
+                           <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-500 to-amber-600 rounded-2xl blur opacity-30 group-hover/bundle:opacity-50 transition duration-500"></div>
+                           <Link href={`/shared-collections/${parentBundles[0].slug}`} className="relative block p-4 bg-[#0A0A0A] border border-yellow-500/20 rounded-2xl hover:border-yellow-500/40 transition-all text-left">
+                             <div className="flex justify-between items-start mb-1">
+                               <span className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.15em] flex items-center gap-1.5">
+                                 <Crown size={12} /> Recommended Pack
+                               </span>
+                               <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">Save Big</span>
+                             </div>
+                             <p className="text-sm font-bold text-white mb-1">Buy in &quot;{parentBundles[0].name}&quot;</p>
+                             <p className="text-[11px] text-muted-foreground line-clamp-1">Get this and other relevant notes in one discounted bundle.</p>
+                           </Link>
+                        </div>
+                      )}
+                    </div>
                  </div>
                )}
              </div>
@@ -339,18 +399,29 @@ export default async function ViewNotePage({ params }) {
                 </div>
                 
                 <div className="flex flex-wrap items-center justify-center gap-3 w-full sm:w-auto">
-                    <AddToCollectionModal noteId={serializedNote._id} />
-                    {/* 🚀 Protect Download Button */}
+                    <AddToCollectionModal noteId={serializedNote._id} noteData={serializedNote} />
                     {hasAccess ? (
                       <DownloadButton signedUrl={signedUrl} fileName={note.fileName} noteId={serializedNote._id} />
                     ) : (
-                      <BuyNoteButton noteId={serializedNote._id} price={note.price} userEmail={session?.user?.email} />
+                      <div className="flex gap-2">
+                         {parentBundles.length > 0 && (
+                            <Link href={`/shared-collections/${parentBundles[0].slug}`}>
+                               <Button variant="outline" className="border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10 font-bold h-10 md:h-11">
+                                  <Crown size={14} className="mr-2" /> Unlock Bundle
+                               </Button>
+                            </Link>
+                         )}
+                         <BuyNoteButton noteId={serializedNote._id} price={note.price} userEmail={session?.user?.email} />
+                      </div>
                     )}
                 </div>
              </div>
           </section>
 
-          <section className="bg-gradient-to-br from-secondary/30 to-background border border-border p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] shadow-lg">
+          <section className="bg-gradient-to-br from-secondary/30 to-background border border-border p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] shadow-lg relative group">
+            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+              <ReportNoteModal noteId={serializedNote._id} title={note.title} />
+            </div>
             <h2 className="text-lg md:text-xl font-bold mb-3 md:mb-4 flex items-center gap-2 text-foreground">
                 <Info className="w-5 h-5 text-cyan-400" />
                 Resource Description

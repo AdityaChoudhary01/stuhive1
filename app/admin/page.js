@@ -6,8 +6,10 @@ import {
   getAllBlogs, 
   getAllOpportunities,
   getPendingPayouts,
-  getAllUniversities 
+  getAllUniversities,
+  getAllReports 
 } from "@/actions/admin.actions"; 
+import { getGlobalFinancialData } from "@/actions/analytics.actions"; // 🚀 Import Financial Action
 import AdminTabs from "@/components/admin/AdminTabs";
 import StatsCard from "@/components/admin/StatsCards"; 
 import { FaShieldAlt, FaUsers, FaFileAlt, FaPenNib } from "react-icons/fa";
@@ -18,7 +20,7 @@ export const metadata = {
 };
 
 export default async function AdminDashboardPage() {
-  // 🚀 Fetch all data in parallel
+  // 🚀 Fetch all data in parallel including new Financials
   const [
     stats, 
     usersRes, 
@@ -27,7 +29,9 @@ export default async function AdminDashboardPage() {
     analyticsData, 
     opportunitiesRes, 
     pendingPayouts,
-    universitiesRes 
+    universitiesRes,
+    reportsRes,
+    financialData // 🚀 Added Financial Data fetch
   ] = await Promise.all([
     getAdminStats(),
     getAllUsers(1, 20), 
@@ -36,7 +40,9 @@ export default async function AdminDashboardPage() {
     getAdminDashboardData(),
     getAllOpportunities(1, 50),
     getPendingPayouts(),
-    getAllUniversities() 
+    getAllUniversities(),
+    getAllReports(),
+    getGlobalFinancialData() // 🚀 Fetching transactions and revenues
   ]);
 
   // --- SERIALIZATION LAYER ---
@@ -77,12 +83,29 @@ export default async function AdminDashboardPage() {
     updatedAt: opp.updatedAt instanceof Date ? opp.updatedAt.toISOString() : new Date(opp.updatedAt).toISOString(),
   }));
 
-  // 🚀 FIXED: Safe serialization for University Hubs (Handling Virtual Hubs without _id)
   const serializedUniversities = (universitiesRes || []).map(univ => ({
     ...univ,
-    _id: univ._id ? univ._id.toString() : `virtual-${univ.slug}`, // Fallback for virtual hubs
+    _id: univ._id ? univ._id.toString() : `virtual-${univ.slug}`, 
     createdAt: univ.createdAt ? new Date(univ.createdAt).toISOString() : null,
     updatedAt: univ.updatedAt ? new Date(univ.updatedAt).toISOString() : null,
+  }));
+
+  const serializedReports = (reportsRes || []).map(report => ({
+    ...report,
+    _id: report._id.toString(),
+    reporter: report.reporter ? {
+      ...report.reporter,
+      _id: report.reporter._id.toString()
+    } : null,
+    targetNote: report.targetNote ? {
+      ...report.targetNote,
+      _id: report.targetNote._id.toString()
+    } : null,
+    targetBundle: report.targetBundle ? {
+      ...report.targetBundle,
+      _id: report.targetBundle._id.toString()
+    } : null,
+    createdAt: report.createdAt instanceof Date ? report.createdAt.toISOString() : new Date(report.createdAt).toISOString(),
   }));
 
   return (
@@ -138,6 +161,8 @@ export default async function AdminDashboardPage() {
             opportunities={serializedOpportunities} 
             pendingPayouts={pendingPayouts} 
             universities={serializedUniversities} 
+            reports={serializedReports} 
+            financialData={financialData} // 🚀 Pass financial data down
           />
       </div>
     </div>

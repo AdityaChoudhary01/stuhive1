@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import NoteCard from "@/components/notes/NoteCard";
 import CollectionActions from "@/components/notes/CollectionActions"; 
-import { FolderOpen, Calendar, Globe, Lock, GraduationCap, ExternalLink, Trophy, BookOpen, School, Lightbulb } from "lucide-react";
+import { FolderOpen, Calendar, Globe, Lock, GraduationCap, ExternalLink, Trophy, BookOpen, School, Lightbulb, Crown } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +63,14 @@ export default async function ViewCollectionPage({ params }) {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-start gap-6 mb-10 pb-8 border-b border-white/10">
         <div className="flex-1 pr-4">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
+              
+              {/* 🚀 PREMIUM BADGE */}
+              {collection.isPremium && (
+                <Badge variant="outline" className="flex items-center gap-1.5 bg-gradient-to-r from-yellow-500/20 to-amber-600/20 text-yellow-400 border-yellow-500/30 px-3 py-1 shadow-[0_0_15px_rgba(234,179,8,0.2)] font-bold">
+                  <Crown className="w-3.5 h-3.5" aria-hidden="true" /> Premium Bundle (₹{collection.price})
+                </Badge>
+              )}
+
               <Badge variant="outline" className={`flex items-center gap-1.5 px-3 py-1 ${catDetails.color}`}>
                   {catDetails.icon} {catDetails.label}
               </Badge>

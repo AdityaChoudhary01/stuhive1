@@ -14,6 +14,8 @@ import { createNotification } from "@/actions/notification.actions";
 import Opportunity from "@/lib/models/Opportunity";
 import mongoose from "mongoose"; // 🚀 Added for ID validation
 import University from "@/lib/models/University";
+import Report from "@/lib/models/Report";
+
 // Helper to check admin status
 async function isAdmin() {
   const session = await getServerSession(authOptions);
@@ -529,17 +531,21 @@ export async function toggleOpportunityPublish(id, currentState) {
 
 /**
  * 🚀 MARKETPLACE PAYOUTS: GET PENDING PAYOUTS
- * Updated to show ALL users with a positive balance, not just >= 500.
+ * Shows all creators who have money in their active wallet OR pending escrow.
  */
 export async function getPendingPayouts() {
   await connectDB();
   if (!(await isAdmin())) return { error: "Unauthorized" };
   
   try {
-    // 🚀 FIXED: Fetch users with ANY positive wallet balance (> 0)
-    const users = await User.find({ walletBalance: { $gt: 0 } })
-      .select('name email avatar walletBalance payoutDetails')
-      .sort({ walletBalance: -1 })
+    const users = await User.find({ 
+      $or: [
+        { walletBalance: { $gt: 0 } }, 
+        { pendingBalance: { $gt: 0 } }
+      ] 
+    })
+      .select('name email avatar walletBalance pendingBalance payoutDetails')
+      .sort({ walletBalance: -1, pendingBalance: -1 })
       .lean();
       
     return JSON.parse(JSON.stringify(users));
@@ -550,31 +556,79 @@ export async function getPendingPayouts() {
 }
 
 /**
+ * 🚀 ADMIN ACTION: FORCE CLEAR ESCROW (Manual Override)
+ * Instantly moves all pending balance to the available wallet balance.
+ */
+export async function forceClearEscrow(userId) {
+  await connectDB();
+  
+  if (!(await isAdmin())) return { success: false, error: "Unauthorized" };
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) return { success: false, error: "User not found" };
+
+    let amountToClear = 0;
+    let hasChanges = false;
+
+    // Force clear ALL pending items regardless of the 7-day wait
+    user.payoutSchedule.forEach(item => {
+      if (item.status === 'pending') {
+        amountToClear += item.amount;
+        item.status = 'cleared';
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      user.walletBalance += amountToClear;
+      user.pendingBalance -= amountToClear;
+      if (user.pendingBalance < 0) user.pendingBalance = 0; // Safety net
+
+      await user.save();
+      
+      await createNotification({
+        recipientId: userId,
+        type: 'SYSTEM',
+        message: `Admin has manually cleared ₹${amountToClear.toFixed(2)} from your escrow. It is now available for withdrawal.`,
+        link: `/wallet`
+      });
+
+      revalidatePath("/admin");
+      return { success: true, message: `Moved ₹${amountToClear.toFixed(2)} to Available Balance.` };
+    } else {
+      return { success: false, error: "No pending funds to clear." };
+    }
+  } catch (error) {
+    console.error("Force Clear Escrow Error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * 🚀 FIXED: MARKETPLACE PAYOUTS: MARK AS PAID
+ * Resets wallet and notifies user.
  */
 export async function processPayout(userId) {
   await connectDB();
   
   if (!(await isAdmin())) return { success: false, error: "Unauthorized" };
 
-  // 🚀 THE FIX: Use the top-level helper instead of mongoose.Types.ObjectId
   if (!mongoose.isValidObjectId(userId)) {
     return { success: false, error: "Invalid User ID format." };
   }
 
   try {
-    // We search first to ensure the user exists and has a balance
     const targetUser = await User.findById(userId).select('walletBalance');
     if (!targetUser) return { success: false, error: "User not found" };
 
     if (targetUser.walletBalance <= 0) {
-      return { success: false, error: "No pending balance to pay." };
+      return { success: false, error: "No available balance to pay. Clear escrow first." };
     }
 
     const payoutAmount = targetUser.walletBalance.toFixed(2);
 
-    // 🚀 ATOMIC UPDATE: Bypasses the "invalid array element" issue 
-    // by only touching the walletBalance field.
+    // 🚀 ATOMIC UPDATE
     const updateResult = await User.updateOne(
       { _id: userId },
       { $set: { walletBalance: 0 } }
@@ -593,6 +647,7 @@ export async function processPayout(userId) {
     });
 
     revalidatePath("/admin");
+    revalidatePath("/wallet");
     return { success: true };
   } catch (error) {
     console.error("Payout Processing Error:", error);
@@ -752,5 +807,52 @@ export async function deleteUniversityEntry(id) {
     return { success: true };
   } catch (error) {
     return { success: false };
+  }
+}
+
+/**
+ * 🚀 FETCH ALL REPORTS (ADMIN ONLY)
+ * Pulls all fraud and quality reports with populated target data.
+ */
+export async function getAllReports() {
+  await connectDB();
+  if (!(await isAdmin())) throw new Error("Unauthorized Access");
+
+  try {
+    const reports = await Report.find()
+      .populate('reporter', 'name email avatar')
+      .populate('targetNote', 'title slug salesCount')
+      .populate('targetBundle', 'name slug purchasedBy')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return JSON.parse(JSON.stringify(reports));
+  } catch (error) {
+    console.error("Fetch Reports Error:", error);
+    return [];
+  }
+}
+
+/**
+ * 🚀 UPDATE REPORT STATUS
+ * Allows admins to mark reports as Investigating, Resolved, or Dismissed.
+ */
+export async function updateReportStatus(reportId, status) {
+  await connectDB();
+  if (!(await isAdmin())) return { success: false, error: "Unauthorized" };
+
+  try {
+    const report = await Report.findByIdAndUpdate(
+      reportId, 
+      { status }, 
+      { new: true }
+    );
+
+    if (!report) return { success: false, error: "Report not found" };
+
+    revalidatePath("/admin");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 }

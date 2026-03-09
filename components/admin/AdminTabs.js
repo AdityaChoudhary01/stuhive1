@@ -9,7 +9,9 @@ import BlogModerationTable from "./BlogModerationTable";
 import AdminAnalyticsClient from "./AdminAnalyticsClient"; 
 import OpportunityManagementTable from "./OpportunityManagementTable"; 
 import PayoutManagementTable from "./PayoutManagementTable"; 
-import UniversityManager from "./UniversityManager"; // 🚀 IMPORTED NEW COMPONENT
+import UniversityManager from "./UniversityManager"; 
+import ReportModerationTable from "./ReportModerationTable"; 
+import TransactionManagementTable from "./TransactionManagementTable"; // 🚀 IMPORTED NEW COMPONENT
 import { 
   FaUsers, 
   FaFileAlt, 
@@ -17,34 +19,41 @@ import {
   FaChartLine, 
   FaBriefcase, 
   FaMoneyBillWave, 
-  FaUniversity 
-} from "react-icons/fa"; // 🚀 ADDED UNIVERSITY ICON
+  FaUniversity,
+  FaShieldAlt,
+  FaReceipt // 🚀 ADDED RECEIPT ICON
+} from "react-icons/fa";
 
-export default function AdminTabs({ users, notes, blogs, analyticsData, opportunities, pendingPayouts }) {
+export default function AdminTabs({ users, notes, blogs, analyticsData, opportunities, pendingPayouts, reports, financialData }) {
   return (
     <Tabs defaultValue="analytics" className="w-full">
-      {/* 🚀 Changed to md:grid-cols-7 to fit all tabs cleanly */}
-      <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-7 mb-8 h-auto md:h-12 bg-secondary/20 p-1 gap-1">
-        <TabsTrigger value="analytics" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
+      {/* 🚀 Changed to 'flex flex-wrap' to handle 9 tabs gracefully on all screen sizes */}
+      <TabsList className="flex flex-wrap w-full mb-8 h-auto bg-secondary/20 p-1 gap-1 justify-start">
+        <TabsTrigger value="analytics" className="flex-1 min-w-[120px] gap-2 data-[state=active]:bg-background py-2">
           <FaChartLine /> Analytics
         </TabsTrigger>
-        <TabsTrigger value="users" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
+        <TabsTrigger value="transactions" className="flex-1 min-w-[120px] gap-2 data-[state=active]:bg-background py-2 text-emerald-400">
+          <FaReceipt /> Finances
+        </TabsTrigger>
+        <TabsTrigger value="users" className="flex-1 min-w-[120px] gap-2 data-[state=active]:bg-background py-2">
           <FaUsers /> Users
         </TabsTrigger>
-        <TabsTrigger value="notes" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
+        <TabsTrigger value="notes" className="flex-1 min-w-[120px] gap-2 data-[state=active]:bg-background py-2">
           <FaFileAlt /> Notes
         </TabsTrigger>
-        <TabsTrigger value="blogs" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
+        <TabsTrigger value="reports" className="flex-1 min-w-[120px] gap-2 data-[state=active]:bg-red-500/20 data-[state=active]:text-red-500 py-2">
+          <FaShieldAlt /> Reports
+        </TabsTrigger>
+        <TabsTrigger value="blogs" className="flex-1 min-w-[120px] gap-2 data-[state=active]:bg-background py-2">
           <FaPenNib /> Blogs
         </TabsTrigger>
-        <TabsTrigger value="opportunities" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
+        <TabsTrigger value="opportunities" className="flex-1 min-w-[120px] gap-2 data-[state=active]:bg-background py-2">
           <FaBriefcase /> Exam/Jobs
         </TabsTrigger>
-        <TabsTrigger value="payouts" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
+        <TabsTrigger value="payouts" className="flex-1 min-w-[120px] gap-2 data-[state=active]:bg-background py-2">
           <FaMoneyBillWave /> Payouts
         </TabsTrigger>
-        {/* 🚀 NEW TAB FOR UNIVERSITIES */}
-        <TabsTrigger value="universities" className="gap-2 data-[state=active]:bg-background py-2 md:py-1">
+        <TabsTrigger value="universities" className="flex-1 min-w-[120px] gap-2 data-[state=active]:bg-background py-2">
           <FaUniversity /> Universities
         </TabsTrigger>
       </TabsList>
@@ -61,6 +70,23 @@ export default function AdminTabs({ users, notes, blogs, analyticsData, opportun
         </Card>
       </TabsContent>
 
+      {/* 🚀 NEW TAB CONTENT FOR TRANSACTIONS */}
+      <TabsContent value="transactions" className="mt-0">
+        <Card className="border-none shadow-none bg-transparent">
+          <CardContent className="p-0">
+            <div className="mb-6">
+              <h2 className="text-2xl font-black text-white uppercase tracking-tighter">
+                Global <span className="text-emerald-500">Finances</span>
+              </h2>
+              <p className="text-muted-foreground text-sm mt-1">
+                Track platform revenue, creator payouts, and individual transactions.
+              </p>
+            </div>
+            <TransactionManagementTable financialData={financialData} />
+          </CardContent>
+        </Card>
+      </TabsContent>
+
       <TabsContent value="users" className="mt-0">
         <Card className="border-none shadow-none bg-transparent">
           <CardContent className="p-0">
@@ -73,6 +99,22 @@ export default function AdminTabs({ users, notes, blogs, analyticsData, opportun
         <Card className="border-none shadow-none bg-transparent">
           <CardContent className="p-0">
             <NoteModerationTable initialNotes={notes} />
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="reports" className="mt-0">
+        <Card className="border-none shadow-none bg-transparent">
+          <CardContent className="p-0">
+            <div className="mb-6">
+              <h2 className="text-2xl font-black text-white uppercase tracking-tighter">
+                Fraud & <span className="text-red-500">Quality Control</span>
+              </h2>
+              <p className="text-muted-foreground text-sm mt-1">
+                Investigate reports regarding bait-and-switch content, plagiarism, or poor quality files.
+              </p>
+            </div>
+            <ReportModerationTable reports={reports} />
           </CardContent>
         </Card>
       </TabsContent>
@@ -107,7 +149,6 @@ export default function AdminTabs({ users, notes, blogs, analyticsData, opportun
         </Card>
       </TabsContent>
 
-      {/* 🚀 NEW TAB CONTENT FOR UNIVERSITY MANAGEMENT */}
       <TabsContent value="universities" className="mt-0">
         <Card className="border-none shadow-none bg-transparent">
           <CardContent className="p-0">

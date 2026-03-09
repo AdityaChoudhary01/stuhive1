@@ -2,7 +2,9 @@ import crypto from "crypto";
 import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
 import Note from "@/lib/models/Note";
-import { createNotification } from "@/actions/notification.actions"; // Assuming you have this
+import Collection from "@/lib/models/Collection"; 
+import Transaction from "@/lib/models/Transaction"; 
+import { createNotification } from "@/actions/notification.actions";
 
 export async function POST(req) {
   try {
@@ -16,7 +18,7 @@ export async function POST(req) {
       return new Response("Webhook secret not configured", { status: 500 });
     }
 
-    // 2. Verify the cryptographic signature to ensure this is ACTUALLY from Razorpay
+    // 2. Verify the cryptographic signature
     const expectedSignature = crypto
       .createHmac("sha256", webhookSecret)
       .update(bodyText)
@@ -27,76 +29,107 @@ export async function POST(req) {
       return new Response("Invalid signature", { status: 400 });
     }
 
-    // 3. Parse the JSON body now that we know it's secure
+    // 3. Parse secure body
     const event = JSON.parse(bodyText);
 
-    // 4. We only care when a payment is successfully captured
+    // 4. Process payment.captured event
     if (event.event === "payment.captured") {
       const payment = event.payload.payment.entity;
       
-      // Razorpay allows you to pass custom 'notes' when creating an order. 
-      // We extract them here to know WHO bought WHAT.
-      const { noteId, buyerId } = payment.notes || {};
+      // We extract the unified metadata fields we defined in payment.actions.js
+      const { itemId, itemType, buyerId } = payment.notes || {};
 
-      if (!noteId || !buyerId) {
-        console.error("Missing metadata (notes) in Razorpay payment payload");
-        return new Response("OK", { status: 200 }); // Still return 200 so Razorpay stops retrying
+      if (!itemId || !buyerId) {
+        console.error("Missing metadata in Razorpay payment payload");
+        return new Response("OK", { status: 200 }); 
       }
 
       await connectDB();
 
-      // Fetch the buyer and the note to get the seller's details
-      const [buyer, note] = await Promise.all([
-        User.findById(buyerId),
-        Note.findById(noteId).populate("user")
-      ]);
-
-      if (!buyer || !note) {
-        return new Response("User or Note not found", { status: 404 });
-      }
-
-      // 5. IDEMPOTENCY CHECK: Prevent double-crediting if webhook fires twice!
-      if (buyer.purchasedNotes.includes(note._id)) {
-        console.log("Webhook fired for already processed payment. Ignoring.");
+      // 5. IDEMPOTENCY CHECK: Check Transaction status instead of just user array
+      // This is safer if the Server Action already finished processing.
+      const existingTx = await Transaction.findOne({ razorpayOrderId: payment.order_id });
+      if (existingTx && existingTx.status === "completed") {
+        console.log("Payment already processed by Server Action. Ignoring Webhook duplicate.");
         return new Response("OK", { status: 200 });
       }
 
-      // 6. Grant the buyer access to the note
-      buyer.purchasedNotes.push(note._id);
-      await buyer.save();
+      const isBundle = itemType === "bundle";
+      let item, sellerId, itemTitle, itemSlug;
 
-      // 7. Calculate payout for the creator (e.g., 80% to creator, 20% platform fee)
-      // payment.amount is in paise (e.g., 50000 = ₹500).
-      const amountInRupees = payment.amount / 100;
-      const creatorEarnings = amountInRupees * 0.80; // 80% cut
-      
-      // 8. Add money to the creator's wallet
-      const seller = await User.findById(note.user._id);
-      if (seller) {
-        seller.walletBalance = (seller.walletBalance || 0) + creatorEarnings;
-        await seller.save();
-
-        // Notify Seller
-        await createNotification({
-          recipientId: seller._id,
-          type: 'SYSTEM',
-          message: `Cha-ching! Someone just bought "${note.title}". ₹${creatorEarnings.toFixed(2)} has been added to your wallet.`,
-          link: `/wallet`
-        });
+      // 6. Fetch Item and Seller Details
+      if (isBundle) {
+        item = await Collection.findById(itemId).populate("user");
+        itemTitle = item?.name;
+        itemSlug = item?.slug;
+      } else {
+        item = await Note.findById(itemId).populate("user");
+        itemTitle = item?.title;
+        itemSlug = item?.slug;
       }
 
-      // Notify Buyer
-      await createNotification({
-        recipientId: buyer._id,
-        type: 'SYSTEM',
-        message: `Payment successful! You now have lifetime access to "${note.title}".`,
-        link: `/notes/${note.slug}`
-      });
+      if (!item) return new Response("Item not found", { status: 404 });
+      sellerId = item.user._id;
 
-      console.log(`✅ Payment processed successfully via Webhook: User ${buyerId} bought Note ${noteId}`);
+      // 7. Calculate payout & Escrow hold date
+      const amountInRupees = payment.amount / 100;
+      const creatorEarnings = amountInRupees * 0.80;
+      
+      // 🚀 FRAUD PROTECTION: Set funds to clear in 7 days
+      const availableDate = new Date();
+      availableDate.setDate(availableDate.getDate() + 7);
+
+      // 8. GRANT ACCESS BASED ON TYPE
+      if (isBundle) {
+        // A. Mark bundle as purchased
+        await Collection.findByIdAndUpdate(itemId, { $addToSet: { purchasedBy: buyerId } });
+        // B. Unlock all notes inside the bundle for the user AND create snapshot
+        if (item.notes && item.notes.length > 0) {
+          await User.findByIdAndUpdate(buyerId, { 
+            $addToSet: { purchasedNotes: { $each: item.notes } },
+            // 🚀 BUNDLE SNAPSHOT: Save the exact array of notes at this moment
+            $push: { purchasedBundles: { bundle: itemId, notesSnapshot: item.notes } }
+          });
+        }
+      } else {
+        // Unlock single note and increment sales counter to lock the file for edits
+        await Note.findByIdAndUpdate(itemId, { $inc: { salesCount: 1 } });
+        await User.findByIdAndUpdate(buyerId, { $addToSet: { purchasedNotes: itemId } });
+      }
+
+      // 9. Update Seller Wallet (Escrow) and Transaction Status
+      await Promise.all([
+        User.findByIdAndUpdate(sellerId, { 
+          $inc: { pendingBalance: creatorEarnings }, // 🚀 Route to pending, NOT walletBalance
+          $push: { payoutSchedule: { amount: creatorEarnings, availableDate, status: 'pending' } }
+        }),
+        Transaction.findOneAndUpdate(
+          { razorpayOrderId: payment.order_id },
+          { status: "completed", razorpayPaymentId: payment.id }
+        )
+      ]);
+
+      // 10. Notifications
+      await Promise.all([
+        // Notify Seller
+        createNotification({
+          recipientId: sellerId,
+          type: 'SYSTEM',
+          message: `Sale Confirmed! Your ${isBundle ? 'bundle' : 'note'} "${itemTitle}" was purchased. ₹${creatorEarnings.toFixed(2)} added to pending balance (7-day hold).`,
+          link: `/wallet`
+        }),
+        // Notify Buyer
+        createNotification({
+          recipientId: buyerId,
+          type: 'SYSTEM',
+          message: `Payment successful! "${itemTitle}" is now unlocked in your library forever.`,
+          link: isBundle ? `/shared-collections/${itemSlug}` : `/notes/${itemSlug}`
+        })
+      ]);
+
+      console.log(`✅ Webhook processed: ${itemType} purchase by ${buyerId}`);
     }
 
-    // Razorpay requires a 2xx response, otherwise it will keep retrying the webhook for 24 hours.
     return new Response("OK", { status: 200 });
 
   } catch (error) {

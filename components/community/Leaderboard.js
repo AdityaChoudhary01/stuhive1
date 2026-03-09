@@ -1,6 +1,6 @@
 "use client";
 
-import { Trophy, Medal, Star, ShieldCheck } from "lucide-react";
+import { Trophy, Star, BadgeCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Link from "next/link";
 
@@ -35,32 +35,35 @@ export default function Leaderboard({ title = "Top Contributors", users = [] }) 
             <Link key={user._id} href={`/profile/${user._id}`}>
               <div className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:bg-white/[0.04] ${isTop3 ? 'bg-white/[0.03] border-white/10' : 'bg-transparent border-transparent hover:border-white/10'}`}>
                 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 min-w-0 pr-2">
                   {/* Rank Badge */}
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border ${rankStyle}`}>
+                  <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-xs font-black border ${rankStyle}`}>
                     {index + 1}
                   </div>
 
-                  <Avatar className="h-10 w-10 border border-white/20">
+                  <Avatar className="h-10 w-10 border border-white/20 shrink-0">
                     <AvatarImage src={user.avatar} alt={user.name} />
                     <AvatarFallback className="bg-gray-800 text-gray-300 font-bold">{user.name?.charAt(0)}</AvatarFallback>
                   </Avatar>
 
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-white flex items-center gap-2">
-                      {user.name}
+                  <div className="flex flex-col min-w-0">
+                    {/* 🚀 Perfected Alignment for Name and Badge */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold text-white truncate group-hover:text-amber-400 transition-colors">
+                        {user.name}
+                      </span>
                       {/* Show Badge if they have one */}
-                      {user.badges && user.badges.length > 0 && (
-                         <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                      {(user.badges && user.badges.length > 0 || user.isVerifiedEducator) && (
+                         <BadgeCheck className="w-4 h-4 text-blue-400 shrink-0" aria-label="Verified Contributor" />
                       )}
-                    </span>
-                    <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">
+                    </div>
+                    <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mt-0.5 truncate">
                       {user.noteCount || 0} Uploads
                     </span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-amber-400 bg-amber-400/10 px-3 py-1.5 rounded-full border border-amber-400/20">
+                <div className="flex items-center gap-2 shrink-0 text-amber-400 bg-amber-400/10 px-3 py-1.5 rounded-full border border-amber-400/20">
                   <Star size={14} className="fill-amber-400" />
                   <span className="text-xs font-black">{user.hivePoints}</span>
                 </div>

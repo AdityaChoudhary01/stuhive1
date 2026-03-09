@@ -67,6 +67,20 @@ export default async function BrowseCollectionsPage({ searchParams }) {
   // 🚀 Fetch items for the requested page
   const { collections, totalCount } = await getPublicCollections({ page: currentPage, limit: 12 });
 
+  // 🚀 STRICT SERIALIZATION: Next.js chokes on nested Mongoose ObjectIds (like the new 'purchasedBy' array)
+  const serializedCollections = collections.map(col => ({
+    ...col,
+    _id: col._id?.toString() || "",
+    user: col.user ? {
+      ...col.user,
+      _id: col.user._id?.toString() || ""
+    } : null,
+    notes: Array.isArray(col.notes) ? col.notes.map(n => n?.toString()) : [],
+    purchasedBy: Array.isArray(col.purchasedBy) ? col.purchasedBy.map(p => p?.toString()) : [], // 🛡️ Fixes the Buffer Error
+    createdAt: col.createdAt ? new Date(col.createdAt).toISOString() : null,
+    updatedAt: col.updatedAt ? new Date(col.updatedAt).toISOString() : null,
+  }));
+
   // 🚀 HYPER-ADVANCED JSON-LD FOR SERP DOMINANCE
   const jsonLd = [
     {
@@ -85,8 +99,8 @@ export default async function BrowseCollectionsPage({ searchParams }) {
       "url": `${APP_URL}/shared-collections?page=${currentPage}`,
       "mainEntity": {
         "@type": "ItemList",
-        "numberOfItems": collections.length,
-        "itemListElement": collections.map((col, index) => ({
+        "numberOfItems": serializedCollections.length,
+        "itemListElement": serializedCollections.map((col, index) => ({
           "@type": "ListItem",
           "position": index + 1,
           "url": `${APP_URL}/shared-collections/${col.slug}`,
@@ -97,19 +111,17 @@ export default async function BrowseCollectionsPage({ searchParams }) {
   ];
 
   return (
-    // 🚀 MICRODATA: Identifying the whole page as a semantic WebPage / CollectionPage directory
     <main className="min-h-screen bg-background text-foreground overflow-hidden selection:bg-cyan-500/30" itemScope itemType="https://schema.org/CollectionPage">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* 🚀 PREMIUM AMBIENT BACKGROUND */}
+      {/* Ambient Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
         <div className="absolute top-[-10%] left-[-5%] w-[40vw] h-[40vw] bg-cyan-900/10 blur-[120px] rounded-full" />
         <div className="absolute top-[20%] right-[-10%] w-[30vw] h-[30vw] bg-purple-900/10 blur-[100px] rounded-full" />
         
-        {/* SVG Noise avoids 404 network errors */}
         <div 
           className="absolute inset-0 opacity-[0.03] mix-blend-overlay pointer-events-none" 
           style={{ 
@@ -120,7 +132,6 @@ export default async function BrowseCollectionsPage({ searchParams }) {
 
       <div className="container relative z-10 max-w-6xl py-16 md:py-24 px-4 sm:px-6 mx-auto">
         
-        {/* 🚀 REFINED PROFESSIONAL HEADER */}
         <header className="mb-12 md:mb-20 max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-cyan-400 mb-6 shadow-sm">
             <Library size={14} aria-hidden="true" />
@@ -136,7 +147,6 @@ export default async function BrowseCollectionsPage({ searchParams }) {
             Access the hive mind of high-quality resources organized by top students. From university semesters to school boards and competitive exam prep—all in one link.
           </p>
 
-          {/* Sleek Data Metrics */}
           <div className="flex flex-wrap items-center gap-8">
              <div className="flex flex-col">
                 <div className="flex items-center gap-2 text-white">
@@ -159,30 +169,22 @@ export default async function BrowseCollectionsPage({ searchParams }) {
         <section aria-labelledby="collections-heading">
           <h2 id="collections-heading" className="sr-only">Verified Community Note Bundles Grid</h2>
           
-          {/* 🚀 CLIENT COMPONENT: Handles the Tabs & Grid */}
+          {/* 🚀 Passing the strictly serialized array */}
           <CollectionGrid 
-            initialCollections={collections} 
+            initialCollections={serializedCollections} 
             totalCount={totalCount} 
             initialPage={currentPage} 
           />
           
         </section>
 
-        {/* 🚀 DYNAMIC SEO CLUSTER (Hidden - For Search Engines Only) */}
         <div className="sr-only">
           <h2>Popular Study Folders, Course Bundles & Exam Categories</h2>
           <ul>
-            {collections.slice(0, 5).map(c => <li key={c._id}>{c.name} ({c.category || 'Academic'}) handwritten notes collection</li>)}
-            <li>B.Tech Computer Science All Semesters Materials</li>
-            <li>UPSC Civil Services General Studies Paper Bundles</li>
-            <li>Class 10th and 12th Board Exam Question Bank</li>
-            <li>JEE Mains and Advanced Physics Chemistry Math Notes</li>
-            <li>SSC CGL and Bank PO Preparation Folders</li>
-            <li>University Semester PDF Note Bundles</li>
+            {serializedCollections.slice(0, 5).map(c => <li key={c._id}>{c.name} ({c.category || 'Academic'}) handwritten notes collection</li>)}
           </ul>
         </div>
 
-        {/* 🚀 MODERN PROFESSIONAL CTA SECTION */}
         <section className="mt-32 md:mt-40 relative group" aria-label="Call to Action">
           <div className="relative p-10 md:p-16 rounded-[2rem] bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 text-center flex flex-col items-center shadow-xl overflow-hidden">
             

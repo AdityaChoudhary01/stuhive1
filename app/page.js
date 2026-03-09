@@ -12,9 +12,10 @@ import BlogCard from "@/components/blog/BlogCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge"; // 🚀 FIXED: Imported Badge
 
 // Icons
-import { ArrowRight, Users, FileText, Download, Trophy, Sparkles, Flame, FolderHeart, Library, Star, ShieldCheck } from "lucide-react";
+import { ArrowRight, Users, FileText, Download, Trophy, Sparkles, Flame, FolderHeart, Library, Star, ShieldCheck, BadgeCheck, Crown } from "lucide-react"; 
 
 export const revalidate = 30;
 
@@ -449,11 +450,22 @@ export default async function HomePage() {
                           <AvatarFallback className="text-xl bg-white/10">{user.name?.charAt(0)}</AvatarFallback>
                         </Avatar>
 
-                        <div className="min-w-0 flex-1 pr-2">
-                          <p className="font-black text-lg sm:text-2xl text-white truncate group-hover:text-amber-400 transition-colors flex items-center gap-2">
-                            {user.name}
-                            {user.badges && user.badges.length > 0 && <ShieldCheck className="w-5 h-5 text-blue-400 shrink-0" aria-label="Verified Contributor" />}
-                          </p>
+                        <div className="min-w-0 flex-1 pr-2 flex flex-col justify-center">
+                          <div className="flex items-center gap-2 max-w-full">
+                            <span className="font-black text-lg sm:text-2xl text-white truncate group-hover:text-amber-400 transition-colors">
+                              {user.name}
+                            </span>
+                            
+                            {/* 🚀 ADMIN BADGE Logic Added Here */}
+                            {user.role === 'admin' ? (
+                               <Badge className="bg-red-500/20 text-red-500 border-red-500/30 text-[8px] uppercase tracking-widest px-1.5 py-0 h-4">
+                                  <Crown size={10} className="mr-1" /> Admin
+                               </Badge>
+                            ) : (user.badges && user.badges.length > 0 || user.isVerifiedEducator) ? (
+                               <BadgeCheck className="w-5 h-5 text-blue-400 shrink-0 mb-0.5" aria-label="Verified Contributor" />
+                            ) : null}
+
+                          </div>
                           <p className="text-xs sm:text-sm text-gray-400 uppercase tracking-[0.2em] font-black truncate mt-1">{user.university || "Global Scholar"}</p>
                         </div>
                       </div>
@@ -488,13 +500,13 @@ export default async function HomePage() {
               </CardContent>
             </Card>
 
-            <div className="flex justify-center mt-10">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10">
               <Link href="/hive-points">
                 <Button
                   variant="outline"
                   className="group relative rounded-full bg-white/[0.02] border-white/10 hover:bg-white/10 text-gray-300 hover:text-white font-black px-8 h-12 overflow-hidden
                     outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60
-                    hover:shadow-[0_24px_70px_-50px_rgba(245,158,11,0.55)]"
+                    hover:shadow-[0_24px_70px_-50px_rgba(245,158,11,0.55)] w-full sm:w-auto"
                 >
                   <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(900px_circle_at_30%_20%,rgba(245,158,11,0.14),transparent_45%)]" />
                   <span className="relative z-10 inline-flex items-center">
@@ -502,7 +514,18 @@ export default async function HomePage() {
                   </span>
                 </Button>
               </Link>
+
+              {/* 🚀 NEW: Link to full leaderboard page */}
+              <Link href="/leaderboard">
+                <Button
+                  variant="ghost"
+                  className="group rounded-full text-amber-400 hover:bg-amber-400/10 hover:text-amber-300 font-black px-8 h-12 w-full sm:w-auto border border-transparent hover:border-amber-400/30 transition-all uppercase tracking-widest text-[10px]"
+                >
+                  View Global Leaderboard <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
             </div>
+            
           </div>
         </div>
       </section>

@@ -15,8 +15,8 @@ export async function getGlobalLeaderboard(limit = 10) {
             { blogCount: { $gt: 0 } } // Also include people who only blogged
         ] 
       })
-      // 🚀 FIXED: Added blogCount to the selection!
-      .select("name avatar university hivePoints badges noteCount blogCount")
+      // 🚀 FIXED: Added 'role' to the selection to identify Admins!
+      .select("name avatar university hivePoints badges noteCount blogCount isVerifiedEducator role")
       .sort({ hivePoints: -1, noteCount: -1 }) 
       .limit(limit)
       .lean();
@@ -28,8 +28,6 @@ export async function getGlobalLeaderboard(limit = 10) {
   }
 }
 
-// ... (keep getUniversityLeaderboard and awardHivePoints the same)
-
 // 🚀 2. Fetch Local University Leaderboard
 export async function getUniversityLeaderboard(universityName, limit = 10) {
   try {
@@ -38,7 +36,8 @@ export async function getUniversityLeaderboard(universityName, limit = 10) {
     const uniRegex = new RegExp(`^${universityName}$`, 'i');
 
     const topLocalUsers = await User.find({ university: uniRegex, hivePoints: { $gt: 0 } })
-      .select("name avatar hivePoints badges noteCount")
+      // 🚀 FIXED: Added 'role' to the selection!
+      .select("name avatar hivePoints badges noteCount isVerifiedEducator role")
       .sort({ hivePoints: -1 })
       .limit(limit)
       .lean();
