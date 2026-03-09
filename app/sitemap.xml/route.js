@@ -52,7 +52,7 @@ export async function GET() {
       "", "/about", "/contact", "/blogs", "/search", "/global-search", "/shared-collections", "/requests",
       "/login","/signup", "/roadmaps", "/updates", 
       "/donate", "/supporters", "/terms", "/privacy", "/dmca", "/hive-points",
-      "/premium-purchase-policy" // 🚀 ADDED: Premium Purchase Policy Link
+      "/premium-purchase-policy", "/leaderboard" // 🚀 ADDED: Premium Purchase Policy Link & Leaderboard
     ].map(route => ({
       url: `${BASE_URL}${route}`,
       lastModified: new Date().toISOString(),

@@ -44,6 +44,7 @@ export async function GET(request) {
       `${APP_URL}/dmca`,
       `${APP_URL}/hive-points`,
       `${APP_URL}/premium-purchase-policy`,
+      `${APP_URL}/leaderboard`,
     ];
 
     // 🚀 Parallel Data Fetching
