@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { deleteOpportunity, toggleOpportunityPublish } from "@/actions/admin.actions";
+import { deleteOpportunity, toggleOpportunityPublish, getAllOpportunities } from "@/actions/admin.actions"; // 🚀 Added getAllOpportunities
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Edit, Loader2, Globe, Lock, Search, Plus, ExternalLink } from "lucide-react";
+import { Trash2, Edit, Loader2, Globe, Lock, Search, Plus, ExternalLink, ChevronDown } from "lucide-react"; // 🚀 Added ChevronDown
 import Link from "next/link";
 import OpportunityFormModal from "./OpportunityFormModal";
 
@@ -17,6 +17,11 @@ export default function OpportunityManagementTable({ initialData }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOpp, setEditingOpp] = useState(null);
   const { toast } = useToast();
+
+  // 🚀 PAGINATION STATE
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(initialData.length === 50); 
 
   const filtered = opportunities.filter(opp => 
     opp.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -48,8 +53,23 @@ export default function OpportunityManagementTable({ initialData }) {
     setLoadingId(null);
   };
 
+  // 🚀 REAL DB FETCH FOR LOAD MORE
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    const res = await getAllOpportunities(nextPage, 50);
+    
+    if (res?.opportunities?.length > 0) {
+      setOpportunities((prev) => [...prev, ...res.opportunities]);
+      setPage(nextPage);
+      if (res.opportunities.length < 50) setHasMore(false); 
+    } else {
+      setHasMore(false);
+    }
+    setLoadingMore(false);
+  };
+
   return (
-    // 🚀 FIX: Added a React Fragment `<>` wrapper
     <> 
       <div className="border border-white/10 rounded-3xl overflow-hidden bg-card/50 backdrop-blur-sm shadow-xl">
         
@@ -130,9 +150,26 @@ export default function OpportunityManagementTable({ initialData }) {
             </tbody>
           </table>
         </div>
+
+        {/* 🚀 TRUE BACKEND LOAD MORE BUTTON */}
+        {hasMore && !searchTerm && (
+          <div className="p-4 flex justify-center border-t border-white/5 bg-white/[0.01]">
+            <Button 
+              variant="outline" 
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="rounded-full border-white/10 text-gray-300 hover:text-white hover:bg-white/5 font-bold uppercase tracking-widest text-[10px] h-10 px-6 transition-all"
+            >
+               {loadingMore ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> Loading...</>
+              ) : (
+                  <>Load More Posts <ChevronDown className="w-4 h-4 ml-2" /></>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* 🚀 FIX: Moved Modal completely OUTSIDE the overflow-hidden container! */}
       {isModalOpen && (
         <OpportunityFormModal 
           initialData={editingOpp} 

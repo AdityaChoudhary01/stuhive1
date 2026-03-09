@@ -1,17 +1,42 @@
 "use client";
 
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { IndianRupee, Users, Crown, FileText, ShieldCheck, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button"; // 🚀 Added Button
+import { IndianRupee, Users, Crown, FileText, ShieldCheck, ExternalLink, Loader2, ChevronDown } from "lucide-react"; // 🚀 Added Loaders
 import { formatDate } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import Link from "next/link"; // 🚀 Added Link import
+import Link from "next/link"; 
+import { getMoreTransactions } from "@/actions/analytics.actions"; // 🚀 Requires server action update below
 
 export default function TransactionManagementTable({ financialData }) {
+  // 🚀 PAGINATION STATE
+  const [txList, setTxList] = useState(financialData?.transactions || []);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState((financialData?.transactions || []).length === 50); 
+
   if (!financialData || !financialData.success) {
     return <div className="p-10 text-red-500 text-center bg-red-500/10 rounded-2xl border border-red-500/20">Failed to load financial data.</div>;
   }
 
-  const { stats, transactions } = financialData;
+  const { stats } = financialData;
+
+  // 🚀 REAL DB FETCH FOR LOAD MORE
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    const res = await getMoreTransactions(nextPage, 50);
+    
+    if (res?.length > 0) {
+      setTxList((prev) => [...prev, ...res]);
+      setPage(nextPage);
+      if (res.length < 50) setHasMore(false);
+    } else {
+      setHasMore(false);
+    }
+    setLoadingMore(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -57,7 +82,7 @@ export default function TransactionManagementTable({ financialData }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {transactions?.map((tx) => {
+              {txList?.map((tx) => {
                 const isBundle = !!tx.bundle;
                 const item = isBundle ? tx.bundle : tx.note;
                 const itemPath = isBundle 
@@ -122,12 +147,30 @@ export default function TransactionManagementTable({ financialData }) {
             </tbody>
           </table>
           
-          {(!transactions || transactions.length === 0) && (
+          {(!txList || txList.length === 0) && (
             <div className="py-20 text-center text-gray-500 text-sm font-bold uppercase tracking-widest">
               No transactions found.
             </div>
           )}
         </div>
+
+        {/* 🚀 TRUE BACKEND LOAD MORE BUTTON */}
+        {hasMore && (
+          <div className="p-4 flex justify-center border-t border-white/5 bg-white/[0.01]">
+            <Button 
+              variant="outline" 
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="rounded-full border-white/10 text-gray-300 hover:text-white hover:bg-white/5 font-bold uppercase tracking-widest text-[10px] h-10 px-6 transition-all"
+            >
+               {loadingMore ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> Loading...</>
+              ) : (
+                  <>Load More Transactions <ChevronDown className="w-4 h-4 ml-2" /></>
+              )}
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   );

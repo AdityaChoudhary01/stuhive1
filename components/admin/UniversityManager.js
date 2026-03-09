@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { School, Trash2, Edit3, Loader2, Upload, Image as ImageIcon, Plus, X } from "lucide-react";
+import { School, Trash2, Edit3, Loader2, Upload, Image as ImageIcon, Plus, X, ChevronDown } from "lucide-react"; // 🚀 Added ChevronDown
 import Image from "next/image";
 
 export default function UniversityManager() {
@@ -18,20 +18,39 @@ export default function UniversityManager() {
   const [uploading, setUploading] = useState({ logo: false, cover: false });
   const { toast } = useToast();
 
+  // 🚀 PAGINATION STATE
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true); 
+
   const [formData, setFormData] = useState({
     name: "", description: "", logo: "", coverImage: "", 
     location: "", website: "", metaTitle: "", metaDescription: ""
   });
 
-  const fetchUnivs = async () => {
-    setLoading(true);
+  // 🚀 UPDATED: Fetch with pagination logic
+  const fetchUnivs = async (pageNum = 1, isLoadMore = false) => {
+    if (!isLoadMore) setLoading(true);
+    else setLoadingMore(true);
+
     try {
-      const data = await getAllUniversities();
-      setUnivs(data);
+      const data = await getAllUniversities(pageNum, 50); // 50 items per page
+      
+      if (isLoadMore) {
+        setUnivs(prev => [...prev, ...data]);
+      } else {
+        setUnivs(data);
+      }
+
+      if (data.length < 50) setHasMore(false);
+      else setHasMore(true);
+      
+      setPage(pageNum);
     } catch (error) {
       console.error("Failed to fetch universities:", error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -82,20 +101,16 @@ export default function UniversityManager() {
     setUploading((prev) => ({ ...prev, [type]: true }));
 
     try {
-      // 1. Optimize locally
       const maxWidth = type === "logo" ? 400 : 1200;
       const maxHeight = type === "logo" ? 400 : 600;
       const optimizedBlob = await optimizeImage(file, maxWidth, maxHeight);
       
-      // 2. 🚀 PREVIEW FIX: Create a temporary local URL for instant preview
       const localPreviewUrl = URL.createObjectURL(optimizedBlob);
 
-      // 3. Get Presigned URL
       const action = type === "logo" ? getUniversityLogoUploadUrlAction : getUniversityCoverUploadUrlAction;
       const { success, uploadUrl, fileKey, error } = await action("image/webp");
       if (!success) throw new Error(error);
 
-      // 4. Upload directly to R2
       const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
         body: optimizedBlob,
@@ -126,7 +141,7 @@ export default function UniversityManager() {
       toast({ title: "Success", description: "University hub professionalized!" });
       setIsEditing(false);
       setFormData({ name: "", description: "", logo: "", coverImage: "", location: "", website: "", metaTitle: "", metaDescription: "" });
-      fetchUnivs();
+      fetchUnivs(1); // Reset to page 1 on successful add
     } else {
       toast({ title: "Error", description: res.error, variant: "destructive" });
     }
@@ -264,7 +279,7 @@ export default function UniversityManager() {
                       {u.isVirtual ? "Setup" : "Edit"}
                     </Button>
                     {!u.isVirtual && (
-                      <Button variant="ghost" size="sm" onClick={async ()=>{ if(confirm("Reset hub? images will be deleted from R2 storage.")){ await deleteUniversityEntry(u._id); fetchUnivs(); }}} className="h-8 w-8 p-0 hover:bg-red-500/20 text-red-400"><Trash2 size={14} /></Button>
+                      <Button variant="ghost" size="sm" onClick={async ()=>{ if(confirm("Reset hub? images will be deleted from R2 storage.")){ await deleteUniversityEntry(u._id); fetchUnivs(1); }}} className="h-8 w-8 p-0 hover:bg-red-500/20 text-red-400"><Trash2 size={14} /></Button>
                     )}
                   </div>
                 </td>
@@ -272,6 +287,24 @@ export default function UniversityManager() {
             ))}
           </tbody>
         </table>
+
+        {/* 🚀 TRUE BACKEND LOAD MORE BUTTON */}
+        {!loading && hasMore && (
+          <div className="p-4 flex justify-center border-t border-white/5 bg-white/[0.01]">
+            <Button 
+              variant="outline" 
+              onClick={() => fetchUnivs(page + 1, true)}
+              disabled={loadingMore}
+              className="rounded-full border-white/10 text-gray-300 hover:text-white hover:bg-white/5 font-bold uppercase tracking-widest text-[10px] h-10 px-6 transition-all"
+            >
+               {loadingMore ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> Loading...</>
+              ) : (
+                  <>Load More Hubs <ChevronDown className="w-4 h-4 ml-2" /></>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react"; 
-import { processPayout, forceClearEscrow } from "@/actions/admin.actions"; // 🚀 Added forceClearEscrow
+import { processPayout, forceClearEscrow, getPendingPayouts } from "@/actions/admin.actions"; // 🚀 Added getPendingPayouts
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, Wallet, Landmark, IndianRupee, Clock, FastForward } from "lucide-react"; 
+import { Loader2, CheckCircle2, Wallet, Landmark, IndianRupee, Clock, FastForward, ChevronDown } from "lucide-react"; // 🚀 Added ChevronDown
 
 export default function PayoutManagementTable({ initialPayouts }) {
   const [payouts, setPayouts] = useState(initialPayouts || []);
@@ -14,14 +14,16 @@ export default function PayoutManagementTable({ initialPayouts }) {
   const [loadingMap, setLoadingMap] = useState({});
   const { toast } = useToast();
 
-  // 🚀 FIXED: React recommended way to sync state from props without useEffect.
-  // This avoids cascading renders and the ESLint error.
+  // 🚀 PAGINATION STATE
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState((initialPayouts || []).length === 50); 
+
   if (initialPayouts !== prevInitialPayouts) {
     setPrevInitialPayouts(initialPayouts);
     setPayouts(initialPayouts || []);
   }
 
-  // 🚀 ACTION: FORCE CLEAR ESCROW
   const handleClearEscrow = async (userId) => {
     if (!confirm("Force clear all pending funds for this user and make them available for withdrawal immediately?")) return;
 
@@ -29,7 +31,6 @@ export default function PayoutManagementTable({ initialPayouts }) {
     const res = await forceClearEscrow(userId);
     
     if (res.success) {
-      // Optimistically update the UI to move funds from pending to wallet
       setPayouts(payouts.map(p => {
          if (p._id === userId) {
             return {
@@ -47,7 +48,6 @@ export default function PayoutManagementTable({ initialPayouts }) {
     setLoadingMap(prev => ({ ...prev, [`escrow_${userId}`]: false }));
   };
 
-  // 🚀 ACTION: MARK AS PAID
   const handleMarkAsPaid = async (userId, amount) => {
     if (!confirm(`Confirm you have manually transferred ₹${amount} to this user's account? This will reset their available wallet balance to ₹0.`)) return;
     
@@ -55,19 +55,34 @@ export default function PayoutManagementTable({ initialPayouts }) {
     const res = await processPayout(userId);
     
     if (res.success) {
-      // Optimistically update the UI to reset available wallet balance
       setPayouts(payouts.map(p => {
          if (p._id === userId) {
             return { ...p, walletBalance: 0 }
          }
          return p;
-      }).filter(p => p.walletBalance > 0 || p.pendingBalance > 0)); // Remove from list if both are 0
+      }).filter(p => p.walletBalance > 0 || p.pendingBalance > 0)); 
       
       toast({ title: "Payout Confirmed", description: "User's available wallet balance has been reset to ₹0." });
     } else {
       toast({ title: "Action Failed", description: res.error, variant: "destructive" });
     }
     setLoadingMap(prev => ({ ...prev, [`payout_${userId}`]: false }));
+  };
+
+  // 🚀 REAL DB FETCH FOR LOAD MORE
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    const res = await getPendingPayouts(nextPage, 50);
+    
+    if (res?.length > 0) {
+      setPayouts((prev) => [...prev, ...res]);
+      setPage(nextPage);
+      if (res.length < 50) setHasMore(false); 
+    } else {
+      setHasMore(false);
+    }
+    setLoadingMore(false);
   };
 
   if (payouts.length === 0) {
@@ -98,7 +113,6 @@ export default function PayoutManagementTable({ initialPayouts }) {
             {payouts.map((user) => (
                 <tr key={user._id} className="transition-all hover:bg-white/[0.02]">
                   
-                  {/* 1. Profile Info */}
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 border border-white/10">
@@ -112,7 +126,6 @@ export default function PayoutManagementTable({ initialPayouts }) {
                     </div>
                   </td>
                   
-                  {/* 2. Escrow (Pending) */}
                   <td className="px-6 py-5">
                     <div className="flex flex-col gap-1.5">
                       <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 text-sm font-black flex items-center gap-1 w-fit">
@@ -126,7 +139,6 @@ export default function PayoutManagementTable({ initialPayouts }) {
                     </div>
                   </td>
 
-                  {/* 3. Available (Wallet) */}
                   <td className="px-6 py-5">
                     <div className="flex flex-col gap-1.5">
                       <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 text-sm font-black flex items-center gap-1 w-fit">
@@ -140,7 +152,6 @@ export default function PayoutManagementTable({ initialPayouts }) {
                     </div>
                   </td>
                   
-                  {/* 4. Account Details */}
                   <td className="px-6 py-5">
                     <div className="flex flex-col gap-1 text-xs">
                         {user.payoutDetails?.upiId ? (
@@ -167,11 +178,8 @@ export default function PayoutManagementTable({ initialPayouts }) {
                     </div>
                   </td>
                   
-                  {/* 5. Action Buttons */}
                   <td className="px-6 py-5 text-right">
                     <div className="flex flex-col items-end gap-2">
-                        
-                        {/* Clear Escrow Button */}
                         {(user.pendingBalance > 0) && (
                           <Button 
                             size="sm" 
@@ -185,7 +193,6 @@ export default function PayoutManagementTable({ initialPayouts }) {
                           </Button>
                         )}
 
-                        {/* Process Payout Button */}
                         <Button 
                           size="sm" 
                           onClick={() => handleMarkAsPaid(user._id, user.walletBalance)}
@@ -199,7 +206,6 @@ export default function PayoutManagementTable({ initialPayouts }) {
                           )}
                           Mark Paid
                         </Button>
-                        
                     </div>
                   </td>
 
@@ -208,6 +214,24 @@ export default function PayoutManagementTable({ initialPayouts }) {
           </tbody>
         </table>
       </div>
+
+      {/* 🚀 TRUE BACKEND LOAD MORE BUTTON */}
+      {hasMore && (
+        <div className="p-4 flex justify-center border-t border-white/5 bg-white/[0.01]">
+          <Button 
+            variant="outline" 
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="rounded-full border-white/10 text-gray-300 hover:text-white hover:bg-white/5 font-bold uppercase tracking-widest text-[10px] h-10 px-6 transition-all"
+          >
+             {loadingMore ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> Loading...</>
+            ) : (
+                <>Load More Records <ChevronDown className="w-4 h-4 ml-2" /></>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

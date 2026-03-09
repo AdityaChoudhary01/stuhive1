@@ -173,13 +173,14 @@ export async function getAllUsers(page = 1, limit = 20) {
 
 /**
  * 🚀 FIXED: TOGGLE USER ROLE
+ * Bypasses full document validation using $set to prevent Google OAuth array errors.
  */
 export async function toggleUserRole(userId) {
   await connectDB();
   if (!(await isAdmin())) return { error: "Unauthorized" };
 
   try {
-    const targetUser = await User.findById(userId);
+    const targetUser = await User.findById(userId).select('role email');
     if (!targetUser) return { success: false, error: "User not found" };
 
     // MAIN ADMIN PROTECTION
@@ -189,8 +190,10 @@ export async function toggleUserRole(userId) {
 
     // 🚀 THE FIX: Automatically flip the role based on what it currently is in the DB
     const newRole = targetUser.role === 'admin' ? 'user' : 'admin';
-    targetUser.role = newRole;
-    await targetUser.save();
+    
+    // 🚀 THE FIX: Use updateOne with $set instead of targetUser.save()
+    // This only updates the role field and ignores Mongoose schema validation for other missing fields (like Google OAuth arrays)
+    await User.updateOne({ _id: userId }, { $set: { role: newRole } });
     
     revalidatePath("/admin");
     return { success: true, newRole }; // Send the new role back to the client
@@ -530,13 +533,15 @@ export async function toggleOpportunityPublish(id, currentState) {
 }
 
 /**
- * 🚀 MARKETPLACE PAYOUTS: GET PENDING PAYOUTS
+ * 🚀 MARKETPLACE PAYOUTS: GET PENDING PAYOUTS WITH PAGINATION
  * Shows all creators who have money in their active wallet OR pending escrow.
  */
-export async function getPendingPayouts() {
+export async function getPendingPayouts(page = 1, limit = 50) {
   await connectDB();
   if (!(await isAdmin())) return { error: "Unauthorized" };
   
+  const skip = (page - 1) * limit;
+
   try {
     const users = await User.find({ 
       $or: [
@@ -546,6 +551,8 @@ export async function getPendingPayouts() {
     })
       .select('name email avatar walletBalance pendingBalance payoutDetails')
       .sort({ walletBalance: -1, pendingBalance: -1 })
+      .skip(skip)
+      .limit(limit) 
       .lean();
       
     return JSON.parse(JSON.stringify(users));
@@ -709,7 +716,10 @@ const getR2KeyFromUrl = (url) => {
   }
 };
 
-export async function getAllUniversities() {
+/**
+ * 🚀 FETCH ALL UNIVERSITIES WITH PAGINATION
+ */
+export async function getAllUniversities(page = 1, limit = 50) {
   await connectDB();
   const session = await getServerSession(authOptions);
   if (session?.user?.role !== "admin") throw new Error("Unauthorized");
@@ -734,7 +744,11 @@ export async function getAllUniversities() {
         };
       });
 
-    return combined.sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = combined.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // 🚀 PAGINATION LOGIC
+    const skip = (page - 1) * limit;
+    return sorted.slice(skip, skip + limit);
   } catch (error) {
     return [];
   }
@@ -811,12 +825,14 @@ export async function deleteUniversityEntry(id) {
 }
 
 /**
- * 🚀 FETCH ALL REPORTS (ADMIN ONLY)
+ * 🚀 FETCH ALL REPORTS WITH PAGINATION
  * Pulls all fraud and quality reports with populated target data.
  */
-export async function getAllReports() {
+export async function getAllReports(page = 1, limit = 50) {
   await connectDB();
   if (!(await isAdmin())) throw new Error("Unauthorized Access");
+
+  const skip = (page - 1) * limit;
 
   try {
     const reports = await Report.find()
@@ -824,6 +840,8 @@ export async function getAllReports() {
       .populate('targetNote', 'title slug salesCount')
       .populate('targetBundle', 'name slug purchasedBy')
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit) 
       .lean();
 
     return JSON.parse(JSON.stringify(reports));

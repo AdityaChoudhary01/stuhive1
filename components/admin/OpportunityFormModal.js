@@ -198,13 +198,20 @@ export default function OpportunityFormModal({ initialData, onClose, onSuccess }
           <div className="border-t border-white/10 pt-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-black text-cyan-400 uppercase tracking-widest">Important Links</h3>
-              <Button type="button" onClick={addLink} variant="outline" size="sm" className="h-7 text-xs border-white/10"><Plus className="w-3 h-3 mr-1"/> Add Link</Button>
+              {/* 🚀 FIXED: Pointed to handleArrayAdd */}
+              <Button type="button" onClick={() => handleArrayAdd('importantLinks', {label:'', url:''})} variant="outline" size="sm" className="h-7 text-xs border-white/10">
+                <Plus className="w-3 h-3 mr-1"/> Add Link
+              </Button>
             </div>
             {formData.importantLinks.map((link, i) => (
               <div key={i} className="flex gap-2 mb-2 items-center">
-                <Input placeholder="Label (e.g. Apply Online)" value={link.label} onChange={e => updateLink(i, 'label', e.target.value)} className="bg-white/5 border-white/10 h-9 w-1/3" />
-                <Input placeholder="URL (https://...)" value={link.url} onChange={e => updateLink(i, 'url', e.target.value)} className="bg-white/5 border-white/10 h-9" />
-                <Button type="button" variant="ghost" onClick={() => removeLink(i)} className="text-red-400 hover:bg-red-500/20 px-2 h-9"><Trash2 className="w-4 h-4"/></Button>
+                {/* 🚀 FIXED: Pointed to handleArrayUpdate */}
+                <Input placeholder="Label (e.g. Apply Online)" value={link.label} onChange={e => handleArrayUpdate('importantLinks', i, 'label', e.target.value)} className="bg-white/5 border-white/10 h-9 w-1/3" />
+                <Input placeholder="URL (https://...)" value={link.url} onChange={e => handleArrayUpdate('importantLinks', i, 'url', e.target.value)} className="bg-white/5 border-white/10 h-9" />
+                {/* 🚀 FIXED: Pointed to handleArrayRemove */}
+                <Button type="button" variant="ghost" onClick={() => handleArrayRemove('importantLinks', i)} className="text-red-400 hover:bg-red-500/20 px-2 h-9">
+                  <Trash2 className="w-4 h-4"/>
+                </Button>
               </div>
             ))}
           </div>

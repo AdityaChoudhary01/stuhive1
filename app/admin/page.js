@@ -21,6 +21,7 @@ export const metadata = {
 
 export default async function AdminDashboardPage() {
   // 🚀 Fetch all data in parallel including new Financials
+  // Limits are safely enforced on the server-side to guarantee fast loading
   const [
     stats, 
     usersRes, 
@@ -39,10 +40,10 @@ export default async function AdminDashboardPage() {
     getAllBlogs(1, 20),
     getAdminDashboardData(),
     getAllOpportunities(1, 50),
-    getPendingPayouts(),
-    getAllUniversities(),
-    getAllReports(),
-    getGlobalFinancialData() // 🚀 Fetching transactions and revenues
+    getPendingPayouts(1, 50), // 🚀 Added explicit pagination limits
+    getAllUniversities(1, 50), // 🚀 Added explicit pagination limits
+    getAllReports(1, 50), // 🚀 Added explicit pagination limits
+    getGlobalFinancialData(1, 50) // 🚀 FIXED: Added explicit pagination limits here!
   ]);
 
   // --- SERIALIZATION LAYER ---

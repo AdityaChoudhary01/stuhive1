@@ -104,6 +104,7 @@ export async function getGlobalFinancialData() {
       .populate('note', 'title slug')
       .populate('bundle', 'name slug')
       .sort({ createdAt: -1 })
+      .limit(50) // 🚀 FIXED: Added initial limit to match the Load More logic perfectly
       .lean();
 
     return {
@@ -172,5 +173,33 @@ export async function getUserDashboardAnalytics() {
   } catch (error) {
     console.error("User Analytics Error:", error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 6. 🚀 ADMIN: FETCH MORE TRANSACTIONS (PAGINATION)
+ */
+export async function getMoreTransactions(page = 1, limit = 50) {
+  await connectDB();
+  const session = await getServerSession(authOptions);
+  if (session?.user?.role !== "admin") return [];
+
+  const skip = (page - 1) * limit;
+  
+  try {
+      const transactions = await Transaction.find({ status: "completed" })
+         .populate('buyer', 'name email avatar')
+         .populate('seller', 'name email avatar')
+         .populate('note', 'title slug')
+         .populate('bundle', 'name slug')
+         .sort({ createdAt: -1 })
+         .skip(skip)
+         .limit(limit)
+         .lean();
+
+      return JSON.parse(JSON.stringify(transactions));
+  } catch (error) {
+      console.error("Error fetching paginated transactions:", error);
+      return [];
   }
 }
