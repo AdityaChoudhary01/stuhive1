@@ -9,7 +9,7 @@ import {
   getAllUniversities,
   getAllReports 
 } from "@/actions/admin.actions"; 
-import { getGlobalFinancialData } from "@/actions/analytics.actions"; // 🚀 Import Financial Action
+import { getGlobalFinancialData } from "@/actions/analytics.actions"; 
 import AdminTabs from "@/components/admin/AdminTabs";
 import StatsCard from "@/components/admin/StatsCards"; 
 import { FaShieldAlt, FaUsers, FaFileAlt, FaPenNib } from "react-icons/fa";
@@ -20,8 +20,7 @@ export const metadata = {
 };
 
 export default async function AdminDashboardPage() {
-  // 🚀 Fetch all data in parallel including new Financials
-  // Limits are safely enforced on the server-side to guarantee fast loading
+  // 🚀 Fetch all data in parallel with explicit limits for performance
   const [
     stats, 
     usersRes, 
@@ -32,7 +31,7 @@ export default async function AdminDashboardPage() {
     pendingPayouts,
     universitiesRes,
     reportsRes,
-    financialData // 🚀 Added Financial Data fetch
+    financialRes // Fetched from analytics.actions
   ] = await Promise.all([
     getAdminStats(),
     getAllUsers(1, 20), 
@@ -40,13 +39,14 @@ export default async function AdminDashboardPage() {
     getAllBlogs(1, 20),
     getAdminDashboardData(),
     getAllOpportunities(1, 50),
-    getPendingPayouts(1, 50), // 🚀 Added explicit pagination limits
-    getAllUniversities(1, 50), // 🚀 Added explicit pagination limits
-    getAllReports(1, 50), // 🚀 Added explicit pagination limits
-    getGlobalFinancialData(1, 50) // 🚀 FIXED: Added explicit pagination limits here!
+    getPendingPayouts(1, 50), 
+    getAllUniversities(1, 50), 
+    getAllReports(1, 50), 
+    getGlobalFinancialData(1, 50) 
   ]);
 
   // --- SERIALIZATION LAYER ---
+  // Ensures all MongoDB objects are converted to plain JSON for Client Components
   
   const serializedUsers = (usersRes.users || []).map(user => ({
     ...user,
@@ -109,6 +109,9 @@ export default async function AdminDashboardPage() {
     createdAt: report.createdAt instanceof Date ? report.createdAt.toISOString() : new Date(report.createdAt).toISOString(),
   }));
 
+  // 🚀 NEW: Serialize Financial Data (Transactions/Stats)
+  const serializedFinancialData = financialRes ? JSON.parse(JSON.stringify(financialRes)) : null;
+
   return (
     <div className="container px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8 sm:space-y-10 pt-20 sm:pt-28">
       
@@ -129,6 +132,7 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* Quick Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         <StatsCard 
             icon={<FaUsers />} 
@@ -153,6 +157,7 @@ export default async function AdminDashboardPage() {
         />
       </div>
 
+      {/* Main Admin Content Tabs */}
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
           <AdminTabs 
             users={serializedUsers} 
@@ -163,7 +168,7 @@ export default async function AdminDashboardPage() {
             pendingPayouts={pendingPayouts} 
             universities={serializedUniversities} 
             reports={serializedReports} 
-            financialData={financialData} // 🚀 Pass financial data down
+            financialData={serializedFinancialData} 
           />
       </div>
     </div>
