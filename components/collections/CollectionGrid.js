@@ -56,7 +56,7 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
     }
   }, [activeTab, session, myLoaded]);
 
-  // 🚀 COMMUNITY LOAD MORE (Maintained original functionality)
+  // 🚀 COMMUNITY LOAD MORE
   const handleLoadMore = async (e) => {
     e.preventDefault();
     if (loading || !hasMore) return;
@@ -78,7 +78,7 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
     }
   };
 
-  // 🚀 MY ARCHIVES LOAD MORE (New functionality)
+  // 🚀 MY ARCHIVES LOAD MORE
   const handleLoadMoreMy = async (e) => {
     e.preventDefault();
     if (loadingMoreMy || !hasMoreMy) return;
@@ -147,7 +147,8 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
             <EmptyState msg="No public archives found at the moment. Check back soon." />
           ) : (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 animate-in fade-in duration-700 delay-150" itemScope itemType="https://schema.org/ItemList">
+              {/* 🚀 REMOVED itemScope/itemList attributes from grid wrapper. JSON-LD handles it purely now. */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 animate-in fade-in duration-700 delay-150">
                 {collections.map((col, index) => (
                   <CollectionCard key={col._id} col={col} index={index} isPersonal={false} />
                 ))}
@@ -264,14 +265,29 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
   const authorName = col.user?.name || sessionUser?.name || "Curator";
   const authorAvatar = col.user?.avatar || sessionUser?.avatar || sessionUser?.image;
   
-  // 🚀 HYPER SEO: Add meta tags for rich snippets inside each grid item
   const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.stuhive.in";
   const fullUrl = `${APP_URL}${targetUrl}`;
 
+  // 🚀 HYPER SEO: Flawless JSON-LD injection instead of messy microdata attributes.
+  // This completely eliminates the Rich Results mutually-exclusive errors.
+  const collectionJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": col.name,
+    "description": col.description || `Study bundle for ${col.name}`,
+    "url": fullUrl,
+    "dateCreated": col.createdAt,
+    "author": {
+      "@type": "Person",
+      "name": authorName
+    },
+    "keywords": col.university || catDetails.label
+  };
+
   return (
-    <div itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem" className="h-full relative">
-      <meta itemProp="position" content={index + 1} />
-      <meta itemProp="url" content={fullUrl} />
+    <div className="h-full relative">
+      {/* 🚀 Invisible SEO Block */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
 
       {col.isPremium && (
         <div className="absolute top-3 right-3 z-20 flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg shadow-yellow-500/20">
@@ -296,18 +312,7 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
             after:content-[''] after:absolute after:inset-0 after:rounded-[inherit] after:opacity-[0.06] after:pointer-events-none
             after:[background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)]
             after:[background-size:20px_20px]`}
-          itemProp="item"
-          itemScope
-          itemType="https://schema.org/CollectionPage"
         >
-          {/* 🚀 SEO METADATA */}
-          <meta itemProp="name" content={col.name} />
-          <meta itemProp="description" content={col.description || `Study bundle for ${col.name}`} />
-          {col.createdAt && <meta itemProp="dateCreated" content={col.createdAt} />}
-          <div itemProp="author" itemScope itemType="https://schema.org/Person">
-             <meta itemProp="name" content={authorName} />
-          </div>
-
           <div className={`absolute top-0 right-0 w-40 h-40 blur-[55px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${col.isPremium ? 'bg-yellow-500/20' : 'bg-cyan-500/10'}`} aria-hidden="true" />
 
           <div className="relative z-10">
@@ -318,7 +323,7 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
                 </div>
 
                 <span className={`flex items-center gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 px-2 py-0.5 rounded-md w-fit truncate max-w-[120px] sm:max-w-[150px]`}>
-                   {catDetails.icon} <span className="truncate" itemProp="keywords">{col.university || catDetails.label}</span>
+                   {catDetails.icon} <span className="truncate">{col.university || catDetails.label}</span>
                 </span>
               </div>
 
