@@ -5,7 +5,7 @@ import ProfileDashboard from "@/components/profile/ProfileDashboard";
 import { getUserProfile, getUserNotes, getSavedNotes } from "@/actions/user.actions";
 import { getBlogsForUser } from "@/actions/blog.actions";
 import { getUserCollections } from "@/actions/collection.actions";
-import { getUserReports } from "@/actions/report.actions"; // 🚀 Imported
+import { getUserReports } from "@/actions/report.actions"; 
 
 // ✅ PERFORMANCE FIX: Enforces strict dynamic rendering for private routes
 export const dynamic = "force-dynamic";
@@ -22,14 +22,16 @@ export default async function ProfilePage() {
     redirect("/login?callbackUrl=/profile");
   }
 
-  // Fetch all user data in parallel for maximum speed
+  // 🚀 PERFORMANCE FIX: Reduced from 1000 to 120. 
+  // 120 items provides exactly 10 pages (12 items per page) for the client UI.
+  // This drastically speeds up DB execution, lowers memory usage, and makes the page load instantly.
   const [userProfile, userNotesRes, savedNotesRes, myBlogs, userCollections, reportsRes] = await Promise.all([
     getUserProfile(session.user.id),
-    getUserNotes(session.user.id),
-    getSavedNotes(session.user.id), 
+    getUserNotes(session.user.id, 1, 120), 
+    getSavedNotes(session.user.id, 1, 120), 
     getBlogsForUser(session.user.id),
     getUserCollections(session.user.id),
-    getUserReports() // 🚀 Parallel fetch
+    getUserReports() 
   ]);
 
   if (!userProfile) {
@@ -78,7 +80,6 @@ export default async function ProfilePage() {
     createdAt: blog.createdAt ? new Date(blog.createdAt).toISOString() : fallbackDate,
   }));
 
-  // 🚀 SERIALIZE REPORTS
   const serializedReports = (reportsRes.reports || []).map(report => ({
     ...report,
     _id: report._id.toString(),
@@ -98,7 +99,7 @@ export default async function ProfilePage() {
         initialSavedNotes={serializedSavedNotes} 
         initialMyBlogs={serializedMyBlogs} 
         initialCollections={serializedCollections}
-        initialReports={serializedReports} // 🚀 Pass to component
+        initialReports={serializedReports} 
       />
     </main>
   );

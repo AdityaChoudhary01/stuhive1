@@ -23,7 +23,7 @@ export async function performGlobalSearch(query) {
         $or: [{ title: searchRegex }, { subject: searchRegex }, { course: searchRegex }]
       })
       // 🚀 FIXED: Added 'slug' to the select list so links use SEO URLs
-      .select('title slug subject course fileType thumbnailKey fileKey rating numReviews uploadDate viewCount downloadCount')
+      .select('title slug subject course university fileType thumbnailKey fileKey rating numReviews uploadDate viewCount downloadCount')
       // 🚀 THE FIX: Added isVerifiedEducator
       .populate('user', 'name avatar role isVerifiedEducator')
       .limit(6)

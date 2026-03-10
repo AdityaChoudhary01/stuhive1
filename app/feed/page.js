@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { getUserFeed, getFollowingUsers } from "@/actions/user.actions"; 
 import FeedView from "@/components/feed/FeedView"; 
 
-// 🚀 CRITICAL FOR FEED: Do not cache this page!
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
@@ -24,12 +23,12 @@ export default async function FeedPage() {
   ]);
 
   return (
-    <div className="container py-8 md:py-16 max-w-6xl min-h-screen">
-      <div className="mb-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
-         <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 mb-4 tracking-tight">
+    <div className="container px-2 sm:px-4 py-8 md:py-16 max-w-6xl min-h-screen">
+      <div className="mb-8 md:mb-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+         <h1 className="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 mb-4 tracking-tight">
             Your Daily Stream
          </h1>
-         <p className="text-gray-400 text-lg">Fresh updates from authors you follow.</p>
+         <p className="text-gray-400 text-base md:text-lg">Fresh updates from authors you follow.</p>
       </div>
       
       <FeedView 

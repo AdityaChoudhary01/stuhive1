@@ -1,7 +1,13 @@
 import { getOpportunityBySlug } from "@/actions/opportunity.actions";
 import { notFound } from "next/navigation";
 import { ExternalLink, CheckCircle2, Calendar, CreditCard, Users, Link as LinkIcon, HelpCircle } from "lucide-react";
-import ShareButtons from "@/components/updates/ShareButtons"; // 🚀 Added Import
+import ShareButtons from "@/components/updates/ShareButtons"; 
+// 🚀 ADDED IMPORTS FOR WATCHLIST
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import connectDB from "@/lib/db";
+import User from "@/lib/models/User";
+import SaveOpportunityButton from "@/components/opportunity/SaveOpportunityButton";
 
 // 🚀 HYPER-SEO: Dynamic Metadata Generation
 export async function generateMetadata({ params }) {
@@ -37,6 +43,17 @@ export default async function UpdateDetailsPage({ params }) {
 
   if (!opportunity) notFound();
 
+  // 🚀 SERVER-SIDE CHECK: Has the user saved this to their Watchlist?
+  let initiallySaved = false;
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    await connectDB();
+    const user = await User.findById(session.user.id).select("savedOpportunities").lean();
+    if (user?.savedOpportunities?.some(id => id.toString() === opportunity._id.toString())) {
+      initiallySaved = true;
+    }
+  }
+
   // 🚀 HYPER-SEO: Structured Data (JSON-LD) for Google Rich Results
   const jsonLd = {
     "@context": "https://schema.org",
@@ -70,9 +87,19 @@ export default async function UpdateDetailsPage({ params }) {
         {/* 1. TOP HEADER SECTION */}
         <div className="p-6 md:p-10 border-b border-white/10">
           <div className="space-y-6">
-            <h1 className="text-3xl md:text-5xl font-black text-white leading-tight tracking-tight">
-              {opportunity.title}
-            </h1>
+            
+            {/* 🚀 Title + Watchlist Button Flex Container */}
+            <div className="flex justify-between items-start gap-4">
+              <h1 className="text-3xl md:text-5xl font-black text-white leading-tight tracking-tight">
+                {opportunity.title}
+              </h1>
+              <div className="shrink-0 bg-white/5 border border-white/10 rounded-full p-1 shadow-lg">
+                <SaveOpportunityButton 
+                  opportunityId={opportunity._id.toString()} 
+                  initiallySaved={initiallySaved} 
+                />
+              </div>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] md:text-[13px] uppercase tracking-widest font-black">
               <p className="flex items-center gap-2 text-gray-400">
@@ -92,7 +119,7 @@ export default async function UpdateDetailsPage({ params }) {
               <p>{opportunity.shortDescription || "No short description provided."}</p>
             </div>
 
-            {/* 🚀 Added Share Buttons here to drive social traffic */}
+            {/* 🚀 Share Buttons */}
             <ShareButtons title={opportunity.title} slug={opportunity.slug} />
           </div>
         </div>

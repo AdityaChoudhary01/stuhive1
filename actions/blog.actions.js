@@ -477,14 +477,18 @@ export const getRelatedBlogs = cache(async (blogId) => {
 });
 
 /**
- * GET MY BLOGS
+ * 🚀 UPDATED: GET MY BLOGS (With Pagination Support for Dashboard)
  */
-export async function getMyBlogs(userId) {
+export async function getMyBlogs(userId, page = 1, limit = 120) {
   await connectDB();
   try {
+    const skip = (page - 1) * limit;
+
     const blogs = await Blog.find({ author: userId })
       .select("-content -reviews") // 🚀 SPEED BOOST
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean();
       
     const safeBlogs = blogs.map(b => ({
@@ -492,7 +496,7 @@ export async function getMyBlogs(userId) {
       _id: b._id.toString(), 
       tags: b.tags ? Array.from(b.tags) : [],
       author: b.author?.toString(), 
-      readTime: b.readTime || 3, // 🚀 FAST: Propagated down
+      readTime: b.readTime || 3, 
       createdAt: b.createdAt?.toISOString()
     }));
     return safeBlogs;
@@ -500,14 +504,18 @@ export async function getMyBlogs(userId) {
 }
 
 /**
- * GET BLOGS FOR USER
+ * 🚀 UPDATED: GET BLOGS FOR USER (With Pagination Support for Dashboard)
  */
-export async function getBlogsForUser(userId) {
+export async function getBlogsForUser(userId, page = 1, limit = 120) {
   await connectDB();
   try {
+    const skip = (page - 1) * limit;
+
     const blogs = await Blog.find({ author: userId })
       .select("-content -reviews") // 🚀 SPEED BOOST
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean();
 
     const safeBlogs = blogs.map(b => ({
@@ -520,7 +528,7 @@ export async function getBlogsForUser(userId) {
       numReviews: b.numReviews || 0,
       viewCount: b.viewCount || 0,
       isFeatured: b.isFeatured || false,
-      readTime: b.readTime || 3, // 🚀 FAST: Propagated down
+      readTime: b.readTime || 3, 
       reviews: [], 
       createdAt: b.createdAt ? b.createdAt.toISOString() : new Date().toISOString(),
       updatedAt: b.updatedAt ? b.updatedAt.toISOString() : new Date().toISOString(),

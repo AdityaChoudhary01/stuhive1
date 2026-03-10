@@ -14,13 +14,17 @@ import { authOptions } from "@/lib/auth"; // 🚀 Added for session options
 const APP_URL = process.env.NEXTAUTH_URL || "https://www.stuhive.in";
 
 /**
- * 1. FETCH ALL USER COLLECTIONS
+ * 1. FETCH ALL USER COLLECTIONS (🚀 UPDATED FOR CHUNKING PAGINATION)
  */
-export async function getUserCollections(userId) {
+export async function getUserCollections(userId, page = 1, limit = 120) {
   await connectDB();
   try {
+    const skip = (page - 1) * limit;
+
     const collections = await Collection.find({ user: userId })
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean();
 
     return collections.map(col => ({

@@ -11,7 +11,7 @@ import BlogCard from "@/components/blog/BlogCard";
 import Pagination from "@/components/common/Pagination";
 import { toggleFollow } from "@/actions/user.actions";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, HelpCircle } from "lucide-react"; // Added HelpCircle icon
+import { Loader2, HelpCircle } from "lucide-react";
 
 export default function FeedView({ initialContent, initialFollowing, currentUserId }) {
   const searchParams = useSearchParams();
@@ -30,7 +30,7 @@ export default function FeedView({ initialContent, initialFollowing, currentUser
   );
 
   const currentPage = Number(searchParams.get("page")) || 1;
-  const itemsPerPage = 6;
+  const itemsPerPage = 12; // 🚀 UPDATED: Show 12 items per page
 
   const filteredContent = initialContent.filter(item => {
     const itemOwner = item.user || item.author;
@@ -89,7 +89,6 @@ export default function FeedView({ initialContent, initialFollowing, currentUser
             </Button>
             </Link>
             
-            {/* 🚀 NEW: Link to Requests Board */}
             <Link href="/requests">
                 <Button variant="outline" className="rounded-full gap-2 px-8 h-12 bg-orange-500/10 text-orange-400 border-orange-500/30 hover:bg-orange-500/20 hover:text-orange-300 font-bold w-full sm:w-auto transition-all">
                     <HelpCircle size={16} /> Community Wishlist
@@ -181,12 +180,16 @@ export default function FeedView({ initialContent, initialFollowing, currentUser
         </Button>
       </div>
 
-      {/* Content Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* 🚀 Content Grid - MIXED COLUMN SIZES */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
         {paginatedContent.map((item) => (
-          <div key={`${item.type}-${item._id}`} className="relative group h-full">
-            <div className="absolute top-4 left-4 z-50 bg-black/80 backdrop-blur-md border border-white/20 text-white text-[10px] px-3 py-1.5 rounded-full flex items-center gap-1.5 font-black uppercase tracking-widest shadow-xl">
-              {item.type === 'note' ? <><FaBook className="w-3 h-3 text-cyan-400"/> Note</> : <><FaPenNib className="w-3 h-3 text-purple-400"/> Blog</>}
+          <div 
+            key={`${item.type}-${item._id}`} 
+            // 🚀 MAGIC FIX: If item is a blog, force it to span 2 columns on mobile, but 1 column on sm+
+            className={`relative group h-full ${item.type === 'blog' ? 'col-span-2 sm:col-span-1' : 'col-span-1'}`}
+          >
+            <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-50 bg-black/80 backdrop-blur-md border border-white/20 text-white text-[8px] sm:text-[10px] px-2 py-1 sm:px-3 sm:py-1.5 rounded-full flex items-center gap-1 sm:gap-1.5 font-black uppercase tracking-widest shadow-xl">
+              {item.type === 'note' ? <><FaBook className="w-2 h-2 sm:w-3 sm:h-3 text-cyan-400"/> Note</> : <><FaPenNib className="w-2 h-2 sm:w-3 sm:h-3 text-purple-400"/> Blog</>}
             </div>
             
             {item.type === 'note' ? (
@@ -220,7 +223,7 @@ export default function FeedView({ initialContent, initialFollowing, currentUser
         </div>
       )}
       
-      {/* 🚀 NEW: Floating Request Board Link for users who have feed content */}
+      {/* Floating Request Board Link */}
       <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-8 duration-700">
           <Link href="/requests" title="Can't find what you need? Ask the community!">
               <div className="group flex items-center gap-3 bg-orange-500 hover:bg-orange-600 text-black px-5 h-14 rounded-full shadow-[0_10px_30px_rgba(249,115,22,0.4)] hover:shadow-[0_15px_40px_rgba(249,115,22,0.6)] hover:-translate-y-1 transition-all duration-300 border border-orange-400/50">

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { FolderHeart, ArrowRight, BookOpen, Loader2, ArrowDown, Globe, User, Lock, GraduationCap, Trophy, School, Lightbulb, BadgeCheck, Crown } from "lucide-react"; // 🚀 Added Crown
+import { FolderHeart, ArrowRight, BookOpen, Loader2, ArrowDown, Globe, User, Lock, GraduationCap, Trophy, School, Lightbulb, BadgeCheck, Crown } from "lucide-react"; 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getPublicCollections, getUserCollections } from "@/actions/collection.actions";
@@ -28,28 +28,35 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
 
   const [activeTab, setActiveTab] = useState("community");
 
+  // 1. COMMUNITY TAB STATE (Unchanged)
   const [collections, setCollections] = useState(initialCollections);
   const [page, setPage] = useState(initialPage);
   const [loading, setLoading] = useState(false);
   const hasMore = collections.length < totalCount;
 
+  // 2. MY ARCHIVES TAB STATE (Upgraded)
   const [myCollections, setMyCollections] = useState([]);
   const [myLoading, setMyLoading] = useState(false);
   const [myLoaded, setMyLoaded] = useState(false);
+  const [myPage, setMyPage] = useState(1);
+  const [hasMoreMy, setHasMoreMy] = useState(false);
+  const [loadingMoreMy, setLoadingMoreMy] = useState(false);
 
   useEffect(() => {
     if (activeTab === "my" && session?.user?.id && !myLoaded) {
       setMyLoading(true);
-      getUserCollections(session.user.id)
+      getUserCollections(session.user.id, 1, 12) 
         .then((res) => {
           setMyCollections(res || []);
           setMyLoaded(true);
+          setHasMoreMy((res?.length || 0) === 12);
         })
         .catch((err) => console.error("Failed to fetch my collections", err))
         .finally(() => setMyLoading(false));
     }
   }, [activeTab, session, myLoaded]);
 
+  // 🚀 COMMUNITY LOAD MORE (Maintained original functionality)
   const handleLoadMore = async (e) => {
     e.preventDefault();
     if (loading || !hasMore) return;
@@ -71,8 +78,32 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
     }
   };
 
+  // 🚀 MY ARCHIVES LOAD MORE (New functionality)
+  const handleLoadMoreMy = async (e) => {
+    e.preventDefault();
+    if (loadingMoreMy || !hasMoreMy) return;
+
+    setLoadingMoreMy(true);
+    try {
+      const nextPage = myPage + 1;
+      const res = await getUserCollections(session.user.id, nextPage, 12);
+
+      if (res && res.length > 0) {
+        setMyCollections((prev) => [...prev, ...res]);
+        setMyPage(nextPage);
+        setHasMoreMy(res.length === 12);
+      } else {
+        setHasMoreMy(false);
+      }
+    } catch (error) {
+      console.error("Failed to load more personal collections", error);
+    } finally {
+      setLoadingMoreMy(false);
+    }
+  };
+
   const tabBase =
-    "group rounded-full px-5 sm:px-6 h-11 sm:h-12 text-xs sm:text-sm font-black tracking-wide " +
+    "group relative rounded-full px-5 sm:px-6 h-11 sm:h-12 text-xs sm:text-sm font-black tracking-wide " +
     "transition-all duration-300 transform-gpu will-change-transform " +
     "outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 overflow-hidden";
 
@@ -109,7 +140,7 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
         </Button>
       </div>
 
-      {/* COMMUNITY */}
+      {/* COMMUNITY PANEL */}
       {activeTab === "community" && (
         <div className="space-y-12">
           {collections.length === 0 ? (
@@ -124,12 +155,12 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
 
               {hasMore && (
                 <div className="mt-12 sm:mt-16 flex justify-center animate-in fade-in duration-500">
-                  <Link
-                    href={`?page=${page + 1}`}
+                  <Button
                     onClick={handleLoadMore}
+                    disabled={loading}
                     className="group relative inline-flex items-center justify-center rounded-full px-8 py-4 sm:py-6 text-xs sm:text-sm
                       font-black uppercase tracking-[0.22em]
-                      border border-white/10 hover:bg-white/5 hover:border-cyan-400/40 hover:text-white text-gray-300
+                      border border-white/10 bg-transparent hover:bg-white/5 hover:border-cyan-400/40 hover:text-white text-gray-300
                       transition-all duration-300 transform-gpu will-change-transform hover:-translate-y-0.5
                       shadow-[0_28px_90px_-70px_rgba(34,211,238,0.65)]
                       outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 overflow-hidden"
@@ -148,7 +179,7 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
                         </>
                       )}
                     </span>
-                  </Link>
+                  </Button>
                 </div>
               )}
             </>
@@ -156,7 +187,7 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
         </div>
       )}
 
-      {/* MY */}
+      {/* MY ARCHIVES PANEL */}
       {activeTab === "my" && (
         <div className="animate-in fade-in duration-500">
           {!session ? (
@@ -182,10 +213,42 @@ export default function CollectionGrid({ initialCollections, totalCount, initial
               }
             />
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-              {myCollections.map((col, index) => (
-                <CollectionCard key={col._id} col={col} index={index} isPersonal={true} sessionUser={session.user} />
-              ))}
+            <div className="space-y-12">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+                {myCollections.map((col, index) => (
+                  <CollectionCard key={col._id} col={col} index={index} isPersonal={true} sessionUser={session.user} />
+                ))}
+              </div>
+
+              {hasMoreMy && (
+                <div className="mt-12 sm:mt-16 flex justify-center">
+                  <Button
+                    onClick={handleLoadMoreMy}
+                    disabled={loadingMoreMy}
+                    className="group relative inline-flex items-center justify-center rounded-full px-8 py-4 sm:py-6 text-xs sm:text-sm
+                      font-black uppercase tracking-[0.22em]
+                      border border-white/10 bg-transparent hover:bg-white/5 hover:border-cyan-400/40 hover:text-white text-gray-300
+                      transition-all duration-300 transform-gpu will-change-transform hover:-translate-y-0.5
+                      shadow-[0_28px_90px_-70px_rgba(34,211,238,0.65)]
+                      outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 overflow-hidden"
+                  >
+                    <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(900px_circle_at_30%_20%,rgba(34,211,238,0.14),transparent_45%)]" />
+                    <span className="absolute inset-0 -translate-x-full motion-safe:group-hover:animate-[shimmer_1.6s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12" />
+
+                    <span className="relative z-10 inline-flex items-center">
+                      {loadingMoreMy ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin text-cyan-400" aria-hidden="true" /> Loading...
+                        </>
+                      ) : (
+                        <>
+                          Load More My Archives <ArrowDown className="w-4 h-4 ml-2 text-cyan-400 group-hover:translate-y-1 transition-transform" aria-hidden="true" />
+                        </>
+                      )}
+                    </span>
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -198,8 +261,6 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
   const targetUrl = isPersonal ? `/collections/${col._id}` : `/shared-collections/${col.slug}`;
   const catDetails = getCategoryDetails(col.category);
 
-  // 🚀 FIX: For personal collections, user data might not be populated in the fetch, 
-  // so we fallback to the sessionUser passed from the parent.
   const authorName = col.user?.name || sessionUser?.name || "Curator";
   const authorAvatar = col.user?.avatar || sessionUser?.avatar || sessionUser?.image;
 
@@ -207,7 +268,6 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
     <div itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem" className="h-full relative">
       <meta itemProp="position" content={index + 1} />
 
-      {/* 🚀 PREMIUM BADGE OVERLAY */}
       {col.isPremium && (
         <div className="absolute top-3 right-3 z-20 flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg shadow-yellow-500/20">
             <Crown size={10} className="drop-shadow-sm" aria-hidden="true" /> ₹{col.price}
@@ -244,7 +304,6 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
                   <FolderHeart size={20} className="sm:w-6 sm:h-6" strokeWidth={1.5} aria-hidden="true" />
                 </div>
 
-                {/* 🚀 DYNAMIC CATEGORY BADGE */}
                 <span className={`flex items-center gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 px-2 py-0.5 rounded-md w-fit truncate max-w-[120px] sm:max-w-[150px]`}>
                    {catDetails.icon} <span className="truncate">{col.university || catDetails.label}</span>
                 </span>
@@ -276,7 +335,6 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
                 <AvatarFallback className="bg-gray-800 text-gray-300 text-[8px] sm:text-xs font-black">{authorName.charAt(0)}</AvatarFallback>
               </Avatar>
               <div className="flex flex-col min-w-0">
-                {/* 🚀 ADDED VERIFIED TICK */}
                 <div className="flex items-center gap-1">
                   <span className="text-[10px] sm:text-xs font-black text-gray-300 truncate max-w-[80px] sm:max-w-[100px] group-hover:text-white transition-colors">
                     {isPersonal ? "Me" : authorName}

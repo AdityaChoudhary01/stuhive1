@@ -137,8 +137,10 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
   };
 
   return (
-    <div className="animate-in fade-in duration-700 px-2 sm:px-0" itemProp="mainEntity" itemScope itemType="https://schema.org/Person">
-        <div className="bg-secondary/10 border border-white/5 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 mb-8 sm:mb-12 relative overflow-hidden shadow-2xl backdrop-blur-md">
+    // 🚀 CHANGED: Inner container now has px-0 on mobile to let the server component's px-2 handle the edges
+    <div className="animate-in fade-in duration-700 px-0" itemProp="mainEntity" itemScope itemType="https://schema.org/Person">
+        {/* 🚀 CHANGED: Reduced p-5 to p-4 on mobile so the content isn't overly squeezed inside the profile card */}
+        <div className="bg-secondary/10 border border-white/5 rounded-[2rem] sm:rounded-[2.5rem] p-4 sm:p-8 mb-8 sm:mb-12 relative overflow-hidden shadow-2xl backdrop-blur-md">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600"></div>
             
             <div className="flex flex-col md:flex-row gap-6 sm:gap-10 items-center md:items-start relative z-10">
@@ -310,7 +312,8 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
             {activeTab === 'notes' ? (
                 notes.length > 0 ? (
                     <>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8" itemScope itemType="https://schema.org/ItemList">
+                      {/* 🚀 CHANGED: grid-cols-2 and gap-3 for mobile so two notes fit side-by-side perfectly */}
+                      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 md:gap-8" itemScope itemType="https://schema.org/ItemList">
                           {currentNotes.map((note, idx) => (
                               <div key={note._id} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem" className="h-full">
                                   <meta itemProp="position" content={idx + 1} />
@@ -341,6 +344,7 @@ export default function PublicProfileView({ profile, notes, blogs, currentUser, 
             ) : (
                 blogs.length > 0 ? (
                     <>
+                      {/* 🚀 RETAINED: Blogs look better as grid-cols-1 on mobile due to heavy text content */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8" itemScope itemType="https://schema.org/ItemList">
                           {currentBlogs.map((blog, idx) => (
                               <div key={blog._id} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem" className="h-full">

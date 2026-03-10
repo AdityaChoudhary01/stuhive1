@@ -176,7 +176,8 @@ export default async function PublicCollectionDetails({ params }) {
         </ul>
       </nav>
 
-      <div className="container relative z-10 max-w-5xl py-8 md:py-20 px-4 mx-auto">
+      {/* 🚀 CHANGED: px-4 changed to px-2 sm:px-6 md:px-8 to reduce horizontal padding on mobile */}
+      <div className="container relative z-10 max-w-5xl py-8 md:py-20 px-2 sm:px-6 md:px-8 mx-auto">
         
         <nav aria-label="Breadcrumb" className="mb-8 md:mb-16 animate-in fade-in slide-in-from-left-4 duration-500">
             <Link 
@@ -292,8 +293,9 @@ export default async function PublicCollectionDetails({ params }) {
           </h2>
           
           {collection.notes && collection.notes.length > 0 ? (
+            // 🚀 CHANGED: grid-cols-2 and gap-3 for mobile to show 2 items side-by-side
             <div 
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 animate-in fade-in slide-in-from-bottom-8 duration-700"
+              className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 animate-in fade-in slide-in-from-bottom-8 duration-700"
               itemProp="mainEntity" 
               itemScope 
               itemType="https://schema.org/ItemList"
@@ -316,7 +318,7 @@ export default async function PublicCollectionDetails({ params }) {
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 md:py-32 rounded-3xl bg-white/[0.01] border border-dashed border-white/10 text-center px-6">
+            <div className="flex flex-col items-center justify-center py-20 md:py-32 rounded-3xl bg-white/[0.01] border border-dashed border-white/10 text-center px-4 sm:px-6">
               <div className="p-4 bg-white/5 rounded-full mb-5" aria-hidden="true">
                 <BookOpen size={28} className="text-gray-500" strokeWidth={1.5} />
               </div>

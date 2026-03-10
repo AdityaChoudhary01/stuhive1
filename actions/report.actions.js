@@ -29,23 +29,31 @@ export async function submitReport(data) {
 }
 
 /**
- * 🚀 FETCH REPORTS FOR CURRENT USER
+ * 🚀 FETCH REPORTS FOR CURRENT USER (UPDATED FOR PAGINATION)
  */
-export async function getUserReports() {
+export async function getUserReports(page = 1, limit = 120) {
   await connectDB();
   const session = await getServerSession(authOptions);
   if (!session) return { success: false, error: "Unauthorized" };
 
   try {
+    const skip = (page - 1) * limit;
+
     const reports = await Report.find({ reporter: session.user.id })
       .populate("targetNote", "title slug")
       .populate("targetBundle", "name slug")
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean();
+
+    const total = await Report.countDocuments({ reporter: session.user.id });
 
     return { 
       success: true, 
-      reports: JSON.parse(JSON.stringify(reports)) 
+      reports: JSON.parse(JSON.stringify(reports)),
+      total,
+      totalPages: Math.ceil(total / limit)
     };
   } catch (error) {
     console.error("Error fetching user reports:", error);

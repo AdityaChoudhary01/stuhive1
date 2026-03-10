@@ -53,20 +53,21 @@ export default async function BlogListServer({ params }) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <div className="max-w-4xl mx-auto mb-12">
+      <div className="max-w-4xl mx-auto mb-10 sm:mb-12">
         <nav className="relative w-full overflow-hidden" aria-label="Blog Categories Filter">
             {/* Fade gradients to indicate scrolling is possible */}
-            <div className="absolute left-0 top-0 bottom-4 w-8 bg-gradient-to-r from-[#0a0a0a] to-transparent pointer-events-none z-10" />
-            <div className="absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-[#0a0a0a] to-transparent pointer-events-none z-10" />
+            <div className="absolute left-0 top-0 bottom-4 w-6 sm:w-8 bg-gradient-to-r from-[#0a0a0a] to-transparent pointer-events-none z-10" />
+            <div className="absolute right-0 top-0 bottom-4 w-8 sm:w-12 bg-gradient-to-l from-[#0a0a0a] to-transparent pointer-events-none z-10" />
             
             {/* ✅ FIXED SCROLLING BUG: Removed md:justify-center so the track always starts from the left */}
-            <div className="flex overflow-x-auto gap-3 pb-4 hide-scrollbar px-6 relative w-full snap-x snap-mandatory">
+            {/* 🚀 CHANGED: Reduced horizontal padding (px-2 sm:px-6) and gaps for mobile */}
+            <div className="flex overflow-x-auto gap-2 sm:gap-3 pb-4 hide-scrollbar px-2 sm:px-6 relative w-full snap-x snap-mandatory">
                 {categories.map((cat) => (
                     <Link 
                         key={cat} 
                         href={`/blogs?${new URLSearchParams({ ...(search && { search }), ...(cat !== "All" && { tag: cat }) })}`}
                         title={`Filter blogs by ${cat}`}
-                        className={`snap-start shrink-0 px-5 py-2.5 rounded-full text-sm font-bold uppercase tracking-wider transition-all duration-300 ${
+                        className={`snap-start shrink-0 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold uppercase tracking-wider transition-all duration-300 ${
                             tag === cat 
                             ? "bg-cyan-500 text-black shadow-[0_0_15px_rgba(34,211,238,0.4)]" 
                             : "bg-white/5 text-gray-400 border border-white/10 hover:text-white"
@@ -82,7 +83,8 @@ export default async function BlogListServer({ params }) {
       <section aria-label="Blog posts grid">
         {blogs.length > 0 ? (
           <div 
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+            // 🚀 CHANGED: grid-cols-2 on mobile, smaller gap-3 on mobile to fit the screen
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
             itemScope 
             itemType="https://schema.org/ItemList" // 🚀 SEO Microdata Container
           >
@@ -104,10 +106,10 @@ export default async function BlogListServer({ params }) {
               ))}
           </div>
         ) : (
-          <div className="text-center py-24 bg-white/[0.02] rounded-[2.5rem] border border-dashed border-white/10">
-              <Hash className="mx-auto h-16 w-16 text-white/10 mb-6" aria-hidden="true" />
-              <h2 className="text-2xl font-bold text-white mb-2">No articles found</h2>
-              <p className="text-base text-gray-400">Be the first to share your experience with the community!</p>
+          <div className="text-center py-20 sm:py-24 bg-white/[0.02] rounded-[2.5rem] border border-dashed border-white/10 mx-2 sm:mx-0">
+              <Hash className="mx-auto h-12 w-12 sm:h-16 sm:w-16 text-white/10 mb-6" aria-hidden="true" />
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">No articles found</h2>
+              <p className="text-sm sm:text-base text-gray-400">Be the first to share your experience with the community!</p>
               
               {(search || tag !== "All") && (
                 <Link href="/blogs" className="inline-block mt-6" title="Reset blog filters">
@@ -119,7 +121,7 @@ export default async function BlogListServer({ params }) {
       </section>
 
       {totalPages > 1 && (
-        <footer className="mt-16" aria-label="Pagination Navigation">
+        <footer className="mt-12 sm:mt-16" aria-label="Pagination Navigation">
             <Pagination currentPage={Number(page)} totalPages={totalPages} />
         </footer>
       )}

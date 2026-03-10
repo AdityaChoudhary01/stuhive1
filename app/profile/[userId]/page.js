@@ -121,7 +121,8 @@ export default async function PublicProfilePage({ params }) {
   }));
 
   return (
-    <main className="w-full max-w-6xl mx-auto px-3 sm:px-6 md:px-8 py-8 pt-24">
+    // 🚀 CHANGED: px-3 reduced to px-2 to minimize mobile horizontal padding
+    <main className="w-full max-w-6xl mx-auto px-2 sm:px-6 md:px-8 py-8 pt-24">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
