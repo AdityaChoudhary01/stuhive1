@@ -15,11 +15,26 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge"; // 🚀 FIXED: Imported Badge
 
 // Icons
-import { ArrowRight, Users, FileText, Download, Trophy, Sparkles, Flame, FolderHeart, Library, Star, ShieldCheck, BadgeCheck, Crown } from "lucide-react"; 
+import { ArrowRight, Users, FileText, Download, Trophy, Sparkles, Flame, FolderHeart, Library, Star, ShieldCheck, BadgeCheck, Crown, BookOpen, Lightbulb, School } from "lucide-react"; 
 
 export const revalidate = 30;
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.stuhive.in";
+
+// 🚀 Dynamic Config Helper for Categories (Matches Shared Collections)
+const getCategoryDetails = (cat) => {
+  switch (cat) {
+    case 'School': 
+      return { label: "School", icon: <BookOpen size={10} className="text-pink-400" /> };
+    case 'Competitive Exams': 
+      return { label: "Exam", icon: <Trophy size={10} className="text-amber-400" /> };
+    case 'Other': 
+      return { label: "Context", icon: <Lightbulb size={10} className="text-blue-400" /> };
+    case 'University':
+    default: 
+      return { label: "Univ", icon: <School size={10} className="text-cyan-400" /> };
+  }
+};
 
 export const metadata = {
   title: { absolute: "StuHive | Free Academic Notes, Study Materials & Peer Collections" },
@@ -209,60 +224,95 @@ export default async function HomePage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6 relative z-10" itemScope itemType="https://schema.org/ItemList">
-            {collections.map((col, index) => (
-              <div key={col._id} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem" className="h-full">
-                <meta itemProp="position" content={index + 1} />
-                <Link
-                  href={`/shared-collections/${col.slug}`}
-                  className="block h-full group outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 rounded-[1.2rem] sm:rounded-[2rem]"
-                >
-                  <article
-                    className="relative flex flex-col justify-between h-full p-4 sm:p-8 rounded-[1.2rem] sm:rounded-[2rem]
-                      bg-white/[0.02] border border-white/5 backdrop-blur-xl overflow-hidden
-                      transition-all duration-500 transform-gpu will-change-transform
-                      hover:bg-white/[0.04] hover:border-cyan-500/35 hover:-translate-y-1
-                      hover:shadow-[0_30px_80px_-55px_rgba(34,211,238,0.55)]
-                      before:content-[''] before:absolute before:inset-0 before:rounded-[inherit] before:p-[1px]
-                      before:bg-gradient-to-br before:from-white/14 before:via-white/0 before:to-white/6
-                      before:opacity-0 group-hover:before:opacity-100 before:transition-opacity before:duration-500
-                      after:content-[''] after:absolute after:inset-0 after:rounded-[inherit] after:opacity-[0.06] after:pointer-events-none
-                      after:[background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)]
-                      after:[background-size:20px_20px]"
-                    itemProp="item"
-                    itemScope
-                    itemType="https://schema.org/CollectionPage"
+            {collections.map((col, index) => {
+              const catDetails = getCategoryDetails(col.category);
+              
+              return (
+                <div key={col._id} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem" className="h-full relative">
+                  <meta itemProp="position" content={index + 1} />
+                  
+                  {/* 🚀 PREMIUM BADGE OVERLAY */}
+                  {col.isPremium && (
+                    <div className="absolute top-3 right-3 z-20 flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg shadow-yellow-500/20">
+                        <Crown size={10} className="drop-shadow-sm" aria-hidden="true" /> ₹{col.price}
+                    </div>
+                  )}
+
+                  <Link
+                    href={`/shared-collections/${col.slug}`}
+                    className="block h-full group outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 rounded-[1.2rem] sm:rounded-[2rem]"
                   >
-                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+                    <article
+                      className={`relative flex flex-col justify-between h-full p-4 sm:p-8 rounded-[1.2rem] sm:rounded-[2rem]
+                        bg-white/[0.02] border border-white/5 backdrop-blur-xl overflow-hidden
+                        transition-all duration-500 transform-gpu will-change-transform
+                        hover:bg-white/[0.04] hover:-translate-y-1
+                        ${col.isPremium ? 'border border-yellow-500/30 hover:border-yellow-400/50 hover:shadow-[0_30px_90px_-50px_rgba(234,179,8,0.25)]' : 'border border-white/10 hover:border-cyan-500/35 hover:shadow-[0_30px_80px_-55px_rgba(34,211,238,0.55)]'}
+                        before:content-[''] before:absolute before:inset-0 before:rounded-[inherit] before:p-[1px]
+                        before:bg-gradient-to-br before:from-white/14 before:via-white/0 before:to-white/6
+                        before:opacity-0 group-hover:before:opacity-100 before:transition-opacity before:duration-500
+                        after:content-[''] after:absolute after:inset-0 after:rounded-[inherit] after:opacity-[0.06] after:pointer-events-none
+                        after:[background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)]
+                        after:[background-size:20px_20px]`}
+                      itemProp="item"
+                      itemScope
+                      itemType="https://schema.org/CollectionPage"
+                    >
+                      <div className={`absolute top-0 right-0 w-40 h-40 blur-[55px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${col.isPremium ? 'bg-yellow-500/20' : 'bg-cyan-500/10'}`} aria-hidden="true" />
 
-                    <div className="relative z-10">
-                      <h3 className="text-sm sm:text-2xl font-black text-white/95 mb-2 sm:mb-3 group-hover:text-cyan-300 transition-colors line-clamp-2 leading-snug sm:leading-tight tracking-tight" itemProp="name">
-                        {col.name}
-                      </h3>
-                      <p className="text-[10px] sm:text-sm text-gray-400 line-clamp-2 sm:line-clamp-3 mb-4 sm:mb-8 leading-relaxed font-medium" itemProp="description">
-                        {col.description || "Access this premium curated bundle of academic resources tailored for specific coursework."}
-                      </p>
-                    </div>
+                      <div className="relative z-10">
+                        <header className="flex items-start justify-between mb-4 sm:mb-6">
+                          <div className="flex flex-col gap-3">
+                            <div className={`p-2 sm:p-3 bg-white/5 rounded-xl ring-1 ring-white/10 group-hover:scale-110 transition-all duration-300 flex items-center justify-center w-fit ${col.isPremium ? 'text-yellow-400 group-hover:bg-yellow-500/10' : 'text-cyan-300 group-hover:bg-cyan-500/10'}`}>
+                              <FolderHeart size={20} className="sm:w-6 sm:h-6" strokeWidth={1.5} aria-hidden="true" />
+                            </div>
 
-                    <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 mt-auto pt-3 sm:pt-5 border-t border-white/10">
-                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 pr-2">
-                        <Avatar className="w-5 h-5 sm:w-8 sm:h-8 border border-white/20 shrink-0">
-                          <AvatarImage src={col.user?.avatar} alt={col.user?.name} />
-                          <AvatarFallback className="bg-cyan-900 text-cyan-300 font-black text-[8px] sm:text-xs">{col.user?.name?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-[9px] sm:text-xs font-black text-gray-300 truncate group-hover:text-white transition-colors">{col.user?.name}</span>
+                            <span className={`flex items-center gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 px-2 py-0.5 rounded-md w-fit truncate max-w-[120px] sm:max-w-[150px]`}>
+                               {catDetails.icon} <span className="truncate">{col.university || catDetails.label}</span>
+                            </span>
+                          </div>
+
+                          {!col.isPremium && (
+                            <div className="flex items-center gap-1.5 px-2 py-1 sm:px-2.5 bg-white/5 border border-white/10 rounded-full h-fit shrink-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500 motion-safe:animate-pulse" aria-hidden="true" />
+                              <span className="text-[8px] sm:text-[10px] font-black text-gray-300">
+                                {col.notes?.length || 0} <span className="hidden sm:inline">Files</span>
+                              </span>
+                            </div>
+                          )}
+                        </header>
+
+                        <h3 className={`text-sm sm:text-2xl font-black text-white/95 mb-2 sm:mb-3 transition-colors line-clamp-2 leading-snug sm:leading-tight tracking-tight ${col.isPremium ? 'group-hover:text-yellow-400' : 'group-hover:text-cyan-300'}`} itemProp="name">
+                          {col.name}
+                        </h3>
+                        <p className="text-[10px] sm:text-sm text-gray-400 line-clamp-2 sm:line-clamp-3 mb-4 sm:mb-8 leading-relaxed font-medium" itemProp="description">
+                          {col.description || "Access this premium curated bundle of academic resources tailored for specific coursework."}
+                        </p>
                       </div>
 
-                      <div className="flex items-center gap-1 sm:gap-1.5 text-[8px] sm:text-xs font-black text-cyan-300 bg-cyan-500/10 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full border border-cyan-500/20 shrink-0">
-                        <Library size={10} className="sm:w-3 sm:h-3" aria-hidden="true" />
-                        <span>
-                          {col.notes?.length || 0} <span className="hidden sm:inline">Docs</span>
-                        </span>
+                      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 mt-auto pt-3 sm:pt-5 border-t border-white/10">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0 pr-2">
+                          <Avatar className="w-5 h-5 sm:w-8 sm:h-8 border border-white/20 shrink-0">
+                            <AvatarImage src={col.user?.avatar} alt={col.user?.name} />
+                            <AvatarFallback className="bg-cyan-900 text-cyan-300 font-black text-[8px] sm:text-xs">{col.user?.name?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[9px] sm:text-xs font-black text-gray-300 truncate max-w-[80px] sm:max-w-[100px] group-hover:text-white transition-colors">{col.user?.name}</span>
+                            {col.user?.isVerifiedEducator && (
+                              <BadgeCheck className="w-3 h-3 text-blue-400 shrink-0" title="Verified Expert Educator" />
+                            )}
+                          </div>
+                        </div>
+
+                        <div className={`flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-white/5 text-gray-400 transition-all shrink-0 ring-1 ring-white/10 ${col.isPremium ? 'group-hover:bg-yellow-500 group-hover:text-black' : 'group-hover:bg-cyan-500 group-hover:text-black'}`}>
+                          <ArrowRight size={12} className="sm:w-3.5 sm:h-3.5" aria-hidden="true" />
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                </Link>
-              </div>
-            ))}
+                    </article>
+                  </Link>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

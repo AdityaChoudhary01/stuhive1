@@ -10,9 +10,9 @@ export default function HeroSection() {
 
   const activities = useMemo(
     () => [
-      { user: "Aditya", action: "uploaded React Notes", icon: <FaBolt aria-hidden="true" className="text-amber-400" /> },
-      { user: "Sneha", action: "shared DBMS PDF", icon: <FaStar aria-hidden="true" className="text-cyan-400" /> },
-      { user: "Rahul", action: "joined StuHive", icon: <FaRocket aria-hidden="true" className="text-purple-400" /> },
+      { user: "Aditya", action: "uploaded React Notes", icon: <FaBolt aria-hidden="true" className="text-amber-400 w-3.5 h-3.5" /> },
+      { user: "Sneha", action: "shared DBMS PDF", icon: <FaStar aria-hidden="true" className="text-cyan-400 w-3.5 h-3.5" /> },
+      { user: "Rahul", action: "joined StuHive", icon: <FaRocket aria-hidden="true" className="text-purple-400 w-3.5 h-3.5" /> },
     ],
     []
   );
@@ -30,112 +30,108 @@ export default function HeroSection() {
 
   return (
     <section
-      className="relative w-full pt-10 pb-20 md:pt-6 md:pb-30 flex flex-col items-center justify-center overflow-hidden"
+      // 🚀 CHANGED: Added bg-background here to perfectly match the global theme
+      className="relative w-full min-h-[80vh] flex flex-col items-center justify-center overflow-hidden py-20 px-4 sm:px-6 lg:px-8 bg-background"
       aria-label="Welcome to StuHive Educational Network"
       itemScope
       itemType="https://schema.org/WPHeader"
     >
-      {/* --- SUBTLE AMBIENT GLOWS --- */}
-      <div className="absolute top-1/4 left-1/4 w-[30rem] h-[30rem] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" aria-hidden="true" />
-      <div className="absolute top-1/3 right-1/4 w-[30rem] h-[30rem] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" aria-hidden="true" />
+      {/* --- PROFESSIONAL AMBIENT BACKGROUND --- */}
+      {/* Soft, diffuse background glows instead of harsh neon blobs */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-[500px] bg-cyan-500/10 blur-[120px] rounded-full pointer-events-none -z-10" aria-hidden="true" />
+      <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-purple-500/5 blur-[150px] rounded-full pointer-events-none -z-10" aria-hidden="true" />
 
-      {/* subtle premium grid/noise overlay (transparent only) */}
+      {/* Elegant Architect Grid Overlay */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-[0.35]"
+        className="absolute inset-0 pointer-events-none opacity-20 -z-10"
         aria-hidden="true"
         style={{
-          maskImage: "radial-gradient(60% 60% at 50% 35%, black 55%, transparent 100%)",
-          WebkitMaskImage: "radial-gradient(60% 60% at 50% 35%, black 55%, transparent 100%)",
+          maskImage: "radial-gradient(ellipse at center, black 40%, transparent 80%)",
+          WebkitMaskImage: "radial-gradient(ellipse at center, black 40%, transparent 80%)",
         }}
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.10)_1px,transparent_0)] [background-size:22px_22px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:40px_40px]" />
       </div>
 
-      <div className="text-center z-10 max-w-5xl px-4 sm:px-6">
-        {/* Live Activity Badge */}
-        <div className="mx-auto w-fit mb-8" aria-hidden="true">
+      <div className="text-center z-10 max-w-4xl mx-auto w-full">
+        
+        {/* --- LIVE ACTIVITY BADGE (SaaS Style) --- */}
+        <div className="mx-auto w-fit mb-8 sm:mb-10" aria-hidden="true">
           <div
-            className="group relative inline-flex items-center gap-3
-              bg-white/[0.02] backdrop-blur-md border border-white/5
-              rounded-full px-4 py-2 sm:px-5 sm:py-2.5 overflow-hidden
-              shadow-[0_18px_60px_-45px_rgba(0,0,0,0.9)]
-              transition-all duration-300 hover:border-white/10 hover:bg-white/[0.035]"
+            className="flex items-center gap-2.5 bg-white/[0.03] backdrop-blur-md border border-white/10
+              rounded-full px-4 py-1.5 sm:px-5 sm:py-2 shadow-sm transition-all duration-300 hover:bg-white/[0.05] hover:border-white/20"
           >
-            {/* sheen */}
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(700px_circle_at_30%_20%,rgba(34,211,238,0.14),transparent_45%)]" />
-
-            <div className="relative flex h-2.5 w-2.5 shrink-0">
-              <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+            <div className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-60 animate-pulse"></span>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-500"></span>
             </div>
 
             <div
-              className={`relative z-10 text-[10px] sm:text-xs font-bold uppercase tracking-[0.1em] sm:tracking-[0.15em]
+              className={`relative z-10 text-[11px] sm:text-xs font-medium tracking-wide
                 text-gray-300 flex items-center gap-2 transition-opacity duration-300 ${fade ? "opacity-100" : "opacity-0"}`}
             >
               {activities[currentActivity].icon}
-              <span className="truncate max-w-[200px] sm:max-w-none">
-                <strong className="text-white">{activities[currentActivity].user}</strong> {activities[currentActivity].action}
+              <span className="truncate max-w-[220px] sm:max-w-none">
+                <strong className="text-white font-semibold">{activities[currentActivity].user}</strong> {activities[currentActivity].action}
               </span>
             </div>
           </div>
         </div>
 
-        <h1 className="text-4xl sm:text-6xl md:text-8xl font-black text-white mb-6 sm:mb-8 leading-[1.06] tracking-tight drop-shadow-lg" itemProp="headline">
+        {/* --- HEADLINE --- */}
+        <h1 
+          className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-white mb-6 leading-[1.15] tracking-tight" 
+          itemProp="headline"
+        >
           Master Your Coursework <br className="hidden sm:block" />
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-500 pb-2 inline-block">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
             with StuHive
           </span>
         </h1>
 
-        <p className="text-base sm:text-lg md:text-xl text-gray-300 max-w-2xl mx-auto mb-10 sm:mb-12 leading-relaxed font-medium px-2" itemProp="description">
-          The decentralized archive for high-performing university students. <br className="hidden md:block" />
-          <span className="text-white">Download free study materials, share handwritten notes, and conquer exams together.</span>
+        {/* --- DESCRIPTION --- */}
+        <p 
+          className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 sm:mb-12 leading-relaxed" 
+          itemProp="description"
+        >
+          The collaborative archive for high-performing university students. 
+          <span className="text-gray-300 block mt-1 sm:mt-0 sm:inline"> Download free study materials, share notes, and conquer exams together.</span>
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full sm:w-auto px-4 sm:px-0">
-          {/* Primary */}
+        {/* --- CALL TO ACTION BUTTONS --- */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full px-2 sm:px-0">
+          
+          {/* Primary Button */}
           <Link
             href="/search"
             title="Explore Free Study Materials"
             aria-label="Start Learning and explore academic notes"
-            className="group relative px-6 py-3.5 sm:px-8 sm:py-4 w-full sm:w-auto rounded-xl sm:rounded-2xl
-              bg-gradient-to-r from-cyan-500 to-purple-600 text-white
-              font-black text-sm sm:text-base overflow-hidden
-              transition-all duration-300 transform-gpu will-change-transform
-              hover:scale-[1.02] active:scale-[0.98]
-              flex items-center justify-center gap-3
-              shadow-[0_25px_70px_-40px_rgba(168,85,247,0.55)] hover:shadow-[0_30px_80px_-45px_rgba(34,211,238,0.45)]
-              outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60"
+            className="w-full sm:w-auto group flex items-center justify-center gap-3 px-8 py-3.5 sm:py-4 rounded-full
+              bg-cyan-500 text-black font-bold text-sm sm:text-base
+              transition-all duration-300 transform hover:-translate-y-0.5 hover:shadow-[0_10px_40px_-10px_rgba(34,211,238,0.5)]
+              outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
           >
-            <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(900px_circle_at_30%_20%,rgba(255,255,255,0.18),transparent_45%)]" />
-            <span className="absolute inset-0 -translate-x-full motion-safe:group-hover:animate-[shimmer_1.8s_infinite] bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12" />
-
-            <FaRocket aria-hidden="true" className="relative z-10 transition-transform duration-300 group-hover:-translate-y-1 group-hover:translate-x-1" />
-            <span className="relative z-10">Start Learning</span>
-            <FaArrowRight aria-hidden="true" size={14} className="relative z-10 group-hover:translate-x-1.5 transition-transform duration-300" />
+            <FaRocket aria-hidden="true" className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            <span>Start Learning</span>
+            <FaArrowRight aria-hidden="true" size={14} className="transition-transform duration-300 group-hover:translate-x-1" />
           </Link>
 
-          {/* Secondary */}
+          {/* Secondary Button */}
           <Link
             href="/notes/upload"
             title="Upload your notes"
             aria-label="Share your own academic notes with the community"
-            className="group relative px-6 py-3.5 sm:px-8 sm:py-4 w-full sm:w-auto rounded-xl sm:rounded-2xl
-              bg-white/[0.02] backdrop-blur-md border border-white/5
-              text-white font-black text-sm sm:text-base
-              hover:bg-white/[0.05] hover:border-white/10
-              transition-all duration-300 transform-gpu will-change-transform
-              hover:scale-[1.02] active:scale-[0.98]
-              flex items-center justify-center gap-3 overflow-hidden
-              outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60
-              shadow-[0_18px_60px_-45px_rgba(0,0,0,0.9)]"
+            className="w-full sm:w-auto group flex items-center justify-center gap-3 px-8 py-3.5 sm:py-4 rounded-full
+              bg-white/[0.03] border border-white/10 text-white font-semibold text-sm sm:text-base backdrop-blur-md
+              transition-all duration-300 hover:bg-white/[0.08] hover:border-white/20 hover:-translate-y-0.5
+              outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
           >
-            <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(900px_circle_at_30%_20%,rgba(34,211,238,0.12),transparent_45%)]" />
-            <FaFeatherAlt aria-hidden="true" className="relative z-10 text-cyan-400 transition-transform group-hover:rotate-12" />
-            <span className="relative z-10">Share Notes</span>
+            <FaFeatherAlt aria-hidden="true" className="text-cyan-400 transition-transform duration-300 group-hover:rotate-12" />
+            <span>Share Notes</span>
           </Link>
+          
         </div>
+        
       </div>
     </section>
   );

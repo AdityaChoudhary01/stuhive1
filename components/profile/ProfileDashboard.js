@@ -46,8 +46,8 @@ const serializeClientNotes = (notes) => {
     ...note,
     _id: note._id?.toString() || note._id,
     user: note.user?._id ? { ...note.user, _id: note.user._id.toString() } : note.user?.toString(),
-    fileKey: note.fileKey || null,          
-    thumbnailKey: note.thumbnailKey || null, 
+    fileKey: note.fileKey || null,
+    thumbnailKey: note.thumbnailKey || null,
     uploadDate: note.uploadDate ? new Date(note.uploadDate).toISOString() : fallbackDate,
   }));
 };
@@ -87,7 +87,7 @@ export default function ProfileDashboard({
   const [isCreatingLoader, setIsCreatingLoader] = useState(false);
 
   const [optimisticAvatar, setOptimisticAvatar] = useState(null);
-  
+
   // 🚀 ADVANCED DATA STATE WITH CHUNKING
   const [myNotes, setMyNotes]         = useState(initialMyNotes || []);
   const [savedNotes, setSavedNotes]   = useState(initialSavedNotes || []);
@@ -117,7 +117,7 @@ export default function ProfileDashboard({
     setIsFetchingUploads(true);
     const nextChunk = uploadsChunk + 1;
     const res = await getUserNotes(user._id, nextChunk, 120); // Fetch next 120
-    
+
     if (res && res.notes) {
       const formatted = serializeClientNotes(res.notes);
       setMyNotes(prev => [...prev, ...formatted]);
@@ -131,7 +131,7 @@ export default function ProfileDashboard({
     setIsFetchingSaved(true);
     const nextChunk = savedChunk + 1;
     const res = await getSavedNotes(user._id, nextChunk, 120); // Fetch next 120
-    
+
     if (res && res.notes) {
       const formatted = serializeClientNotes(res.notes);
       setSavedNotes(prev => [...prev, ...formatted]);
@@ -313,96 +313,183 @@ export default function ProfileDashboard({
     <div className="w-full max-w-6xl mx-auto px-3 sm:px-4 lg:px-6 py-6 sm:py-8 lg:py-10 space-y-6 sm:space-y-8">
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          PROFILE HERO CARD
+          PROFILE HERO CARD (UPDATED UI ONLY)
       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-white/8 shadow-2xl shadow-black/40">
-
         {/* Decorative top accent bar */}
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 z-10" />
 
-        {/* Subtle mesh / glow background */}
+        {/* Subtle mesh / glow background (UNCHANGED THEME) */}
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.06] via-transparent to-purple-600/[0.06]" />
         <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-cyan-500/[0.05] blur-3xl pointer-events-none" />
         <div className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-purple-600/[0.05] blur-3xl pointer-events-none" />
 
-        <div className="relative z-[1] bg-secondary/10 backdrop-blur-sm px-4 sm:px-8 lg:px-12 py-8 sm:py-10">
+        <div className="relative z-[1] bg-secondary/10 backdrop-blur-sm">
+          <div className="px-4 sm:px-8 lg:px-12 py-7 sm:py-9">
 
-          {/* Avatar + name row */}
-          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 sm:gap-7 mb-6">
-
-            {/* Avatar */}
-            <div className="shrink-0 ring-4 ring-cyan-500/25 rounded-full shadow-lg shadow-cyan-500/10">
-              <ProfileImageUpload currentImage={displayAvatar} onUploadComplete={handleAvatarUpdate} />
-            </div>
-
-            {/* Name / email / role */}
-            <div className="flex flex-col items-center sm:items-start gap-2 flex-1 min-w-0 pb-1">
-              {!isEditingName ? (
-                <div className="flex items-center gap-2.5">
-                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight truncate max-w-[260px] sm:max-w-none">
-                    {user.name}
-                  </h1>
-                  <button
-                    onClick={() => setIsEditingName(true)}
-                    className="p-1.5 rounded-lg text-gray-500 hover:text-cyan-400 hover:bg-cyan-400/10 transition-all shrink-0"
-                    title="Edit name"
-                  >
-                    <FaEdit className="w-3.5 h-3.5" />
-                  </button>
+            {/* Header strip: context + desktop actions */}
+            <div className="flex items-start justify-between gap-4 mb-6 sm:mb-7">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="mt-1 h-9 w-1 rounded-full bg-gradient-to-b from-cyan-400 via-blue-500 to-purple-600 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">
+                    Profile Dashboard
+                  </p>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1 leading-snug max-w-xl">
+                    Manage your identity, quick actions, and content in one place.
+                  </p>
                 </div>
-              ) : (
-                <form onSubmit={handleNameSave} className="flex items-center gap-2 w-full max-w-xs sm:max-w-sm">
-                  <Input
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    className="h-9 text-sm bg-black/40 border-white/15 focus-visible:ring-cyan-500"
-                    autoFocus
-                  />
-                  <Button size="sm" type="submit" className="shrink-0 bg-cyan-500 text-black font-bold hover:bg-cyan-400">Save</Button>
-                  <Button size="sm" variant="ghost" className="shrink-0 text-gray-400 hover:text-white"
-                    onClick={() => { setIsEditingName(false); setNewName(user?.name || ""); }}>✕</Button>
-                </form>
-              )}
+              </div>
 
-              <p className="text-sm text-gray-400">{user.email}</p>
-
-              <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                <RoleBadge role={user.role} />
+              {/* CTA buttons — desktop */}
+              <div className="hidden lg:flex items-center gap-2 shrink-0">
+                <Link href="/dashboard/analytics">
+                  <Button className="rounded-full gap-2 px-5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black uppercase tracking-widest text-xs shadow-[0_0_20px_rgba(34,211,238,0.25)] hover:scale-[1.03] transition-all">
+                    <TrendingUp className="w-4 h-4" /> Analytics <Sparkles className="w-3 h-3 text-yellow-300" />
+                  </Button>
+                </Link>
+                <Link href="/feed">
+                  <Button className="rounded-full gap-2 px-5 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-xs font-semibold transition-all">
+                    <FaRss className="w-3.5 h-3.5 text-cyan-400" /> Personalized Feed
+                  </Button>
+                </Link>
               </div>
             </div>
 
-            {/* CTA buttons — top-right on desktop */}
-            <div className="hidden lg:flex flex-col gap-2 items-end shrink-0">
-              <Link href="/dashboard/analytics">
-                <Button className="rounded-full gap-2 px-5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black uppercase tracking-widest text-xs shadow-[0_0_20px_rgba(34,211,238,0.25)] hover:scale-[1.03] transition-all">
-                  <TrendingUp className="w-4 h-4" /> Analytics <Sparkles className="w-3 h-3 text-yellow-300" />
-                </Button>
-              </Link>
-              <Link href="/feed">
-                <Button className="rounded-full gap-2 px-5 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-xs font-semibold transition-all">
-                  <FaRss className="w-3.5 h-3.5 text-cyan-400" /> Personalized Feed
-                </Button>
-              </Link>
+            {/* Main profile grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6 lg:gap-8 items-start">
+
+              {/* Avatar block */}
+              <div className="flex flex-col items-center lg:items-start gap-3">
+                <div className="relative shrink-0 rounded-full">
+                  {/* ring + soft glow (theme-safe) */}
+                  <div className="absolute -inset-2 rounded-full bg-cyan-500/[0.06] blur-xl pointer-events-none" />
+                  <div className="relative ring-4 ring-cyan-500/25 rounded-full shadow-lg shadow-cyan-500/10">
+                    <ProfileImageUpload currentImage={displayAvatar} onUploadComplete={handleAvatarUpdate} />
+                  </div>
+                </div>
+
+                {/* subtle helper line (mobile only) */}
+                <p className="lg:hidden text-[10px] text-gray-600 font-medium">
+                  Tip: Tap your avatar to update profile photo.
+                </p>
+              </div>
+
+              {/* Details block */}
+              <div className="min-w-0 space-y-5 sm:space-y-6">
+
+                {/* Name + edit */}
+                <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4 sm:p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="min-w-0">
+                      {!isEditingName ? (
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight truncate">
+                            {user.name}
+                          </h1>
+                          <button
+                            onClick={() => setIsEditingName(true)}
+                            className="shrink-0 p-2 rounded-xl text-gray-500 hover:text-cyan-400 hover:bg-cyan-400/10 transition-all border border-transparent hover:border-cyan-500/15 active:scale-95"
+                            title="Edit name"
+                            aria-label="Edit name"
+                          >
+                            <FaEdit className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <form onSubmit={handleNameSave} className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
+                          <Input
+                            value={newName}
+                            onChange={e => setNewName(e.target.value)}
+                            className="h-10 text-sm bg-black/40 border-white/15 focus-visible:ring-cyan-500 rounded-xl"
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              type="submit"
+                              className="h-10 rounded-xl shrink-0 bg-cyan-500 text-black font-black hover:bg-cyan-400 px-4"
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-10 rounded-xl shrink-0 text-gray-400 hover:text-white px-4"
+                              onClick={() => { setIsEditingName(false); setNewName(user?.name || ""); }}
+                              type="button"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </form>
+                      )}
+
+                      {/* Meta chips row */}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold bg-black/25 border border-white/10 text-gray-300 max-w-full">
+                          <span className="truncate">{user.email}</span>
+                        </span>
+
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold bg-white/[0.03] border border-white/10 text-gray-400">
+                          Account
+                        </span>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <RoleBadge role={user.role} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right-side micro panel (only if space) */}
+                    <div className="hidden sm:flex flex-col items-end gap-2 shrink-0">
+                      <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-widest font-black text-gray-600 text-right">
+                          Status
+                        </p>
+                        <div className="mt-1 inline-flex items-center gap-1.5 text-[11px] font-bold text-cyan-400">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          Active
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bio panel (more professional container, theme-safe) */}
+                <div className="rounded-2xl border border-white/8 bg-white/[0.02] overflow-hidden">
+                  <div className="px-4 sm:px-5 py-3 border-b border-white/8 bg-black/10">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-600">
+                        Bio & Highlights
+                      </p>
+                      <span className="text-[10px] text-gray-600">
+                        Keep it short & searchable
+                      </span>
+                    </div>
+                  </div>
+                  <div className="px-4 sm:px-5 py-4">
+                    <EditBio user={user} />
+                  </div>
+                </div>
+
+                {/* Mobile CTA buttons (kept, just cleaner spacing) */}
+                <div className="flex flex-wrap justify-center sm:justify-start gap-2 lg:hidden pt-1">
+                  <Link href="/dashboard/analytics">
+                    <Button className="rounded-full gap-2 px-5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black uppercase tracking-widest text-xs shadow-[0_0_20px_rgba(34,211,238,0.25)] transition-all">
+                      <TrendingUp className="w-4 h-4" /> Analytics <Sparkles className="w-3 h-3 text-yellow-300" />
+                    </Button>
+                  </Link>
+                  <Link href="/feed">
+                    <Button className="rounded-full gap-2 px-5 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-xs font-semibold transition-all">
+                      <FaRss className="w-3.5 h-3.5 text-cyan-400" /> Personalized Feed
+                    </Button>
+                  </Link>
+                </div>
+
+              </div>
             </div>
-          </div>
 
-          {/* Bio */}
-          <div className="mb-6">
-            <EditBio user={user} />
-          </div>
-
-          {/* Mobile CTA buttons */}
-          <div className="flex flex-wrap justify-center gap-2 lg:hidden">
-            <Link href="/dashboard/analytics">
-              <Button className="rounded-full gap-2 px-5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black uppercase tracking-widest text-xs shadow-[0_0_20px_rgba(34,211,238,0.25)] transition-all">
-                <TrendingUp className="w-4 h-4" /> Analytics <Sparkles className="w-3 h-3 text-yellow-300" />
-              </Button>
-            </Link>
-            <Link href="/feed">
-              <Button className="rounded-full gap-2 px-5 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-xs font-semibold transition-all">
-                <FaRss className="w-3.5 h-3.5 text-cyan-400" /> Personalized Feed
-              </Button>
-            </Link>
           </div>
         </div>
       </div>
@@ -486,11 +573,11 @@ export default function ProfileDashboard({
                 }
               />
             )}
-            <CustomPagination 
-              totalItems={myNotes.length} 
-              itemsPerPage={ITEMS_PER_PAGE} 
-              currentPage={currentPage} 
-              setCurrentPage={setCurrentPage} 
+            <CustomPagination
+              totalItems={myNotes.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
               hasMoreChunk={hasMoreUploads}
               isFetchingChunk={isFetchingUploads}
               onLoadChunk={loadMoreUploadsChunk}
@@ -520,11 +607,11 @@ export default function ProfileDashboard({
                 }
               />
             )}
-            <CustomPagination 
-              totalItems={savedNotes.length} 
-              itemsPerPage={ITEMS_PER_PAGE} 
-              currentPage={currentPage} 
-              setCurrentPage={setCurrentPage} 
+            <CustomPagination
+              totalItems={savedNotes.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
               hasMoreChunk={hasMoreSaved}
               isFetchingChunk={isFetchingSaved}
               onLoadChunk={loadMoreSavedChunk}
@@ -585,11 +672,11 @@ export default function ProfileDashboard({
                 }
               />
             )}
-            <CustomPagination 
-              totalItems={myBlogs.length} 
-              itemsPerPage={ITEMS_PER_PAGE} 
-              currentPage={currentPage} 
-              setCurrentPage={setCurrentPage} 
+            <CustomPagination
+              totalItems={myBlogs.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
             />
           </div>
         )}
@@ -910,11 +997,11 @@ export default function ProfileDashboard({
               />
             )}
 
-            <CustomPagination 
-              totalItems={collections.length} 
-              itemsPerPage={ITEMS_PER_PAGE} 
-              currentPage={currentPage} 
-              setCurrentPage={setCurrentPage} 
+            <CustomPagination
+              totalItems={collections.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
             />
           </div>
         )}
@@ -975,11 +1062,11 @@ export default function ProfileDashboard({
               </div>
             )}
 
-            <CustomPagination 
-              totalItems={myReports.length} 
-              itemsPerPage={ITEMS_PER_PAGE} 
-              currentPage={currentPage} 
-              setCurrentPage={setCurrentPage} 
+            <CustomPagination
+              totalItems={myReports.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
             />
           </div>
         )}
@@ -996,12 +1083,12 @@ export default function ProfileDashboard({
 ───────────────────────────────────────────── */
 
 /** 🚀 UPGRADED: Custom Pagination Component with Server-Side Chunk Support */
-function CustomPagination({ 
-  totalItems, itemsPerPage, currentPage, setCurrentPage, 
-  hasMoreChunk = false, onLoadChunk, isFetchingChunk = false 
+function CustomPagination({
+  totalItems, itemsPerPage, currentPage, setCurrentPage,
+  hasMoreChunk = false, onLoadChunk, isFetchingChunk = false
 }) {
   const totalPages = Math.ceil(totalItems / itemsPerPage);
-  
+
   // Hide pagination if only 1 page exists AND there are no more chunks to load
   if (totalPages <= 1 && !hasMoreChunk) return null;
 
@@ -1024,7 +1111,7 @@ function CustomPagination({
 
   const handlePageSelect = (page) => {
     setCurrentPage(page);
-    window.scrollTo({ top: 350, behavior: "smooth" }); 
+    window.scrollTo({ top: 350, behavior: "smooth" });
   };
 
   const getPageNumbers = () => {
@@ -1045,16 +1132,16 @@ function CustomPagination({
 
   return (
     <div className="flex justify-center items-center gap-1.5 sm:gap-2 mt-8 pt-6 border-t border-white/5 pb-4">
-      <Button 
-        variant="outline" 
-        size="sm" 
-        disabled={currentPage === 1} 
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={currentPage === 1}
         onClick={handlePrev}
         className="border-white/10 text-gray-400 hover:text-white disabled:opacity-30 rounded-full h-9 px-4 text-xs font-bold"
       >
         Prev
       </Button>
-      
+
       {getPageNumbers().map(num => (
         <Button
           key={num}
@@ -1067,10 +1154,10 @@ function CustomPagination({
         </Button>
       ))}
 
-      <Button 
-        variant="outline" 
-        size="sm" 
-        disabled={(currentPage === totalPages && !hasMoreChunk) || isFetchingChunk} 
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={(currentPage === totalPages && !hasMoreChunk) || isFetchingChunk}
         onClick={handleNext}
         className="border-white/10 text-gray-400 hover:text-white disabled:opacity-30 rounded-full h-9 px-4 text-xs font-bold"
       >

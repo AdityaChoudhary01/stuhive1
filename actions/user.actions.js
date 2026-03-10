@@ -318,30 +318,43 @@ export async function getUserFeed(userId) {
  * SAVE/UNSAVE NOTE
  */
 export async function toggleSaveNote(userId, noteId) {
-  await connectDB();
   try {
-    const user = await User.findById(userId);
-    if (!user) return { success: false, error: "User not found" };
+    await connectDB();
 
-    const index = user.savedNotes.indexOf(noteId);
-    let isSaved = false;
-
-    if (index === -1) {
-      user.savedNotes.push(noteId);
-      isSaved = true;
-    } else {
-      user.savedNotes.splice(index, 1);
-      isSaved = false;
+    if (!userId || !noteId) {
+      return { success: false, error: "Missing user or note ID." };
     }
 
-    await user.save();
+    const user = await User.findById(userId);
+    if (!user) return { success: false, error: "User not found." };
+
+    // Convert noteId to string for safe comparison
+    const targetNoteId = noteId.toString();
     
-    revalidatePath('/profile');
-    revalidatePath('/search');
+    // Check if the note is already in the user's savedNotes array
+    const isSaved = user.savedNotes.some(id => id.toString() === targetNoteId);
+
+    if (isSaved) {
+      // Remove it
+      await User.findByIdAndUpdate(userId, { 
+        $pull: { savedNotes: targetNoteId } 
+      });
+    } else {
+      // Add it
+      await User.findByIdAndUpdate(userId, { 
+        $addToSet: { savedNotes: targetNoteId } 
+      });
+    }
+
+    // Revalidate paths where saved notes appear so the UI updates
+    revalidatePath("/profile");
+    revalidatePath("/feed");
+    revalidatePath(`/notes/${targetNoteId}`); // If you use ID for routes
     
-    return { success: true, isSaved };
+    return { success: true, isSaved: !isSaved };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error("Toggle Save Note Error:", error);
+    return { success: false, error: "Failed to save note. Please try again." };
   }
 }
 

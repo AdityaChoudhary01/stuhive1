@@ -456,3 +456,30 @@ export async function getPurchasedBundleSnapshot(bundleId) {
     return { success: false, error: "Failed to load snapshot" };
   }
 }
+
+/**
+ * 🚀 FETCH A USER'S PUBLIC COLLECTIONS ONLY (For Public Profile)
+ */
+export async function getPublicUserCollections(userId, limit = 12) {
+  await connectDB();
+  try {
+    const collections = await Collection.find({ user: userId, visibility: 'public' })
+      .populate('user', 'name avatar isVerifiedEducator')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return collections.map(col => ({
+      ...col,
+      _id: col._id.toString(),
+      user: col.user ? { ...col.user, _id: col.user._id.toString() } : null,
+      notes: col.notes ? col.notes.map(n => n.toString()) : [],
+      purchasedBy: col.purchasedBy ? col.purchasedBy.map(p => p.toString()) : [],
+      createdAt: col.createdAt?.toISOString(),
+      updatedAt: col.updatedAt?.toISOString(),
+    }));
+  } catch (error) {
+    console.error("Error fetching public user collections:", error);
+    return [];
+  }
+}

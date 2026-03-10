@@ -263,10 +263,15 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
 
   const authorName = col.user?.name || sessionUser?.name || "Curator";
   const authorAvatar = col.user?.avatar || sessionUser?.avatar || sessionUser?.image;
+  
+  // 🚀 HYPER SEO: Add meta tags for rich snippets inside each grid item
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.stuhive.in";
+  const fullUrl = `${APP_URL}${targetUrl}`;
 
   return (
     <div itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem" className="h-full relative">
       <meta itemProp="position" content={index + 1} />
+      <meta itemProp="url" content={fullUrl} />
 
       {col.isPremium && (
         <div className="absolute top-3 right-3 z-20 flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg shadow-yellow-500/20">
@@ -295,6 +300,14 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
           itemScope
           itemType="https://schema.org/CollectionPage"
         >
+          {/* 🚀 SEO METADATA */}
+          <meta itemProp="name" content={col.name} />
+          <meta itemProp="description" content={col.description || `Study bundle for ${col.name}`} />
+          {col.createdAt && <meta itemProp="dateCreated" content={col.createdAt} />}
+          <div itemProp="author" itemScope itemType="https://schema.org/Person">
+             <meta itemProp="name" content={authorName} />
+          </div>
+
           <div className={`absolute top-0 right-0 w-40 h-40 blur-[55px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${col.isPremium ? 'bg-yellow-500/20' : 'bg-cyan-500/10'}`} aria-hidden="true" />
 
           <div className="relative z-10">
@@ -305,7 +318,7 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
                 </div>
 
                 <span className={`flex items-center gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest bg-white/5 border border-white/10 px-2 py-0.5 rounded-md w-fit truncate max-w-[120px] sm:max-w-[150px]`}>
-                   {catDetails.icon} <span className="truncate">{col.university || catDetails.label}</span>
+                   {catDetails.icon} <span className="truncate" itemProp="keywords">{col.university || catDetails.label}</span>
                 </span>
               </div>
 
@@ -319,11 +332,11 @@ function CollectionCard({ col, index, isPersonal, sessionUser }) {
               )}
             </header>
 
-            <h3 className={`text-sm sm:text-xl font-black mb-2 sm:mb-3 leading-snug tracking-tight text-white transition-colors line-clamp-2 ${col.isPremium ? 'group-hover:text-yellow-400' : 'group-hover:text-cyan-300'}`} itemProp="name">
+            <h3 className={`text-[13px] sm:text-xl font-black mb-1.5 sm:mb-3 leading-tight sm:leading-snug tracking-tight text-white transition-colors line-clamp-2 ${col.isPremium ? 'group-hover:text-yellow-400' : 'group-hover:text-cyan-300'}`}>
               {col.name}
             </h3>
 
-            <p className="text-[10px] sm:text-sm text-gray-400 line-clamp-2 sm:line-clamp-3 leading-relaxed mb-4 sm:mb-8" itemProp="description">
+            <p className="text-[10px] sm:text-sm text-gray-400 line-clamp-2 sm:line-clamp-3 leading-relaxed mb-4 sm:mb-8">
               {col.description || `Optimized academic collection for ${col.name}. Expertly organized for your exam readiness.`}
             </p>
           </div>

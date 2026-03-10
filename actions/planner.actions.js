@@ -365,3 +365,28 @@ export async function removeResourceFromPlan(userId, planId, resourceId) {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * 🚀 11. FETCH A USER'S PUBLIC ROADMAPS (For Public Profile)
+ */
+export async function getPublicUserRoadmaps(userId, limit = 12) {
+  await connectDB();
+  try {
+    const roadmaps = await StudyEvent.find({ user: userId, isPublic: true })
+      .populate('user', 'name avatar isVerifiedEducator')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return roadmaps.map(rm => ({
+      ...rm,
+      _id: rm._id.toString(),
+      user: rm.user ? { ...rm.user, _id: rm.user._id.toString() } : null,
+      createdAt: rm.createdAt?.toISOString(),
+      updatedAt: rm.updatedAt?.toISOString(),
+    }));
+  } catch (error) {
+    console.error("Error fetching public roadmaps:", error);
+    return [];
+  }
+}
