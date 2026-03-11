@@ -1,7 +1,14 @@
+import { setupDevPlatform } from '@cloudflare/next-on-pages/next-dev';
+
+// Mock Cloudflare bindings for local development
+if (process.env.NODE_ENV === 'development') {
+  await setupDevPlatform();
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    unoptimized: true,
+    unoptimized: true, // Required for Cloudflare Pages standard export
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       { protocol: 'https', hostname: 'cdn.stuhive.in', pathname: '/**' },
@@ -19,10 +26,21 @@ const nextConfig = {
       bodySizeLimit: '15mb',
     },
   },
-  webpack: (config) => {
-    // 🚀 STABLE WEBPACK CONFIG
+  webpack: (config, { isServer }) => {
+    // 🚀 STABLE WEBPACK CONFIG (Kept yours)
     config.resolve.alias.canvas = false;
     config.resolve.alias.encoding = false;
+
+    // Required to fix resolving Edge-incompatible packages
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+      };
+    }
     return config;
   },
   eslint: {

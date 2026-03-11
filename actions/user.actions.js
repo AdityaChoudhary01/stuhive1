@@ -1,13 +1,18 @@
-"use server";
+'use server';
 
-import connectDB from "@/lib/db";
-import User from "@/lib/models/User";
-import Note from "@/lib/models/Note";
-import Blog from "@/lib/models/Blog";
-import Collection from "@/lib/models/Collection"; // 🚀 Added to fetch bundles
+import { getDb } from "@/lib/db";
+import { 
+  users, 
+  notes, 
+  blogs, 
+  userFollows, 
+  userBookmarks, 
+  purchases, 
+  collections 
+} from "@/db/schema";
+import { eq, and, inArray, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth"; // 🚀 Auth.js v5
 import { deleteFileFromR2 } from "@/lib/r2";
 import { createNotification } from "@/actions/notification.actions";
 
@@ -15,19 +20,42 @@ import { createNotification } from "@/actions/notification.actions";
  * GET USER PROFILE
  */
 export async function getUserProfile(userId) {
-  await connectDB();
   try {
-    const user = await User.findById(userId)
-      // 🚀 THE FIX: Added isVerifiedEducator to follower/following logic
-      .populate('followers', 'name avatar isVerifiedEducator')
-      .populate('following', 'name avatar isVerifiedEducator')
-      .select('-password')
-      .lean();
-
+    const db = getDb();
+    
+    // 1. Get base user
+    const dbUsers = await db.select().from(users).where(eq(users.id, userId));
+    const user = dbUsers[0];
     if (!user) return null;
 
-    return JSON.parse(JSON.stringify(user));
+    // 2. Remove sensitive info manually (since we don't have .select('-password'))
+    const { password, ...safeUser } = user;
+
+    // 3. Get Followers
+    const followers = await db.select({
+      id: users.id,
+      name: users.name,
+      avatar: users.avatar,
+      isVerifiedEducator: users.isVerifiedEducator
+    })
+    .from(userFollows)
+    .innerJoin(users, eq(userFollows.followerId, users.id))
+    .where(eq(userFollows.followingId, userId));
+
+    // 4. Get Following
+    const following = await db.select({
+      id: users.id,
+      name: users.name,
+      avatar: users.avatar,
+      isVerifiedEducator: users.isVerifiedEducator
+    })
+    .from(userFollows)
+    .innerJoin(users, eq(userFollows.followingId, users.id))
+    .where(eq(userFollows.followerId, userId));
+
+    return { ...safeUser, followers, following };
   } catch (error) {
+    console.error("getUserProfile Error:", error);
     return null;
   }
 }
@@ -36,30 +64,37 @@ export async function getUserProfile(userId) {
  * GET USER NOTES (For Profile Page)
  */
 export async function getUserNotes(userId, page = 1, limit = 10) {
-  await connectDB();
   try {
+    const db = getDb();
     const skip = (page - 1) * limit;
 
-    const notes = await Note.find({ user: userId }) 
-      .sort({ uploadDate: -1 })
-      .skip(skip)
-      .limit(limit)
-      // 🚀 THE FIX: Added isVerifiedEducator
-      .populate('user', 'name avatar isVerifiedEducator') 
-      .lean();
+    const userNotes = await db.select({
+      note: notes,
+      user: {
+        id: users.id,
+        name: users.name,
+        avatar: users.avatar,
+        isVerifiedEducator: users.isVerifiedEducator
+      }
+    })
+    .from(notes)
+    .innerJoin(users, eq(notes.userId, users.id))
+    .where(eq(notes.userId, userId))
+    .orderBy(desc(notes.createdAt))
+    .limit(limit)
+    .offset(skip);
 
-    const total = await Note.countDocuments({ user: userId });
+    // Get total count
+    const allNotes = await db.select({ id: notes.id }).from(notes).where(eq(notes.userId, userId));
+    const total = allNotes.length;
 
-    const safeNotes = JSON.parse(JSON.stringify(notes));
+    // Flatten structure to match old Mongoose return type
+    const safeNotes = userNotes.map(row => ({ ...row.note, user: row.user }));
 
-    return {
-      notes: safeNotes,
-      total,
-      totalPages: Math.ceil(total / limit)
-    };
+    return { notes: safeNotes, total, totalPages: Math.ceil(total / limit) };
   } catch (error) {
     console.error("Error in getUserNotes:", error);
-    return { notes: [], total: 0 };
+    return { notes: [], total: 0, totalPages: 0 };
   }
 }
 
@@ -67,27 +102,20 @@ export async function getUserNotes(userId, page = 1, limit = 10) {
  * UPDATE USER AVATAR ONLY (With R2 Auto-Delete)
  */
 export async function updateUserAvatar(userId, avatarUrl, avatarKey) {
-  await connectDB();
-  const session = await getServerSession(authOptions);
-
-  if (!session || session.user.id !== userId) {
-    return { success: false, error: "Unauthorized" };
-  }
-
   try {
-    const currentUser = await User.findById(userId);
+    const session = await auth();
+    if (!session || session.user.id !== userId) return { success: false, error: "Unauthorized" };
+
+    const db = getDb();
+    const currentUser = (await db.select().from(users).where(eq(users.id, userId)))[0];
     
-    // ✅ R2 CLEANUP: If the user already has an avatarKey, delete the old file from R2
+    // ✅ R2 CLEANUP
     if (currentUser.avatarKey && currentUser.avatarKey !== avatarKey) {
         console.log(`Deleting old avatar from R2: ${currentUser.avatarKey}`);
         await deleteFileFromR2(currentUser.avatarKey);
     }
 
-    // Save the new public URL and the secret R2 Key to the database
-    await User.findByIdAndUpdate(userId, { 
-        avatar: avatarUrl,
-        avatarKey: avatarKey 
-    });
+    await db.update(users).set({ avatar: avatarUrl, avatarKey: avatarKey }).where(eq(users.id, userId));
     
     revalidatePath('/profile');
     revalidatePath(`/profile/${userId}`);
@@ -103,22 +131,16 @@ export async function updateUserAvatar(userId, avatarUrl, avatarKey) {
  */
 export async function updateUserBio(userId, newBio) {
   try {
-    await connectDB();
-    const session = await getServerSession(authOptions);
-
-    if (!session || session.user.id !== userId) {
-      return { success: false, error: "Unauthorized" };
-    }
+    const session = await auth();
+    if (!session || session.user.id !== userId) return { success: false, error: "Unauthorized" };
     
-    // Sanitize and limit the bio length securely on the server
+    const db = getDb();
     const sanitizedBio = newBio ? newBio.trim().substring(0, 300) : "";
 
-    await User.findByIdAndUpdate(userId, { bio: sanitizedBio });
+    await db.update(users).set({ bio: sanitizedBio }).where(eq(users.id, userId));
 
-    // Instantly clear cache for SEO indexing and UI updates
     revalidatePath('/profile');
     revalidatePath(`/profile/${userId}`);
-    
     return { success: true, bio: sanitizedBio };
   } catch (error) {
     console.error("Failed to update bio:", error);
@@ -130,30 +152,37 @@ export async function updateUserBio(userId, newBio) {
  * GET SAVED NOTES
  */
 export async function getSavedNotes(userId, page = 1, limit = 10) {
-  await connectDB();
   try {
-    const user = await User.findById(userId).populate({
-      path: 'savedNotes',
-      options: { sort: { uploadDate: -1 }, skip: (page - 1) * limit, limit: limit },
-      // 🚀 THE FIX: Added isVerifiedEducator
-      populate: { path: 'user', select: 'name avatar role isVerifiedEducator' }
-    }).lean();
+    const db = getDb();
+    const skip = (page - 1) * limit;
 
-    if (!user || !user.savedNotes) return { notes: [], total: 0 };
+    const saved = await db.select({
+      note: notes,
+      user: {
+        id: users.id,
+        name: users.name,
+        avatar: users.avatar,
+        role: users.role,
+        isVerifiedEducator: users.isVerifiedEducator
+      }
+    })
+    .from(userBookmarks)
+    .innerJoin(notes, eq(userBookmarks.noteId, notes.id))
+    .innerJoin(users, eq(notes.userId, users.id))
+    .where(eq(userBookmarks.userId, userId))
+    .orderBy(desc(userBookmarks.createdAt))
+    .limit(limit)
+    .offset(skip);
 
-    const userDoc = await User.findById(userId);
-    const total = userDoc.savedNotes.length;
+    const totalRows = await db.select({ id: userBookmarks.noteId }).from(userBookmarks).where(eq(userBookmarks.userId, userId));
+    const total = totalRows.length;
 
-    const safeNotes = JSON.parse(JSON.stringify(user.savedNotes));
+    const safeNotes = saved.map(row => ({ ...row.note, user: row.user }));
 
-    return {
-      notes: safeNotes,
-      total,
-      totalPages: Math.ceil(total / limit)
-    };
+    return { notes: safeNotes, total, totalPages: Math.ceil(total / limit) };
   } catch (error) {
     console.error("getSavedNotes error:", error);
-    return { notes: [], total: 0 };
+    return { notes: [], total: 0, totalPages: 0 };
   }
 }
 
@@ -161,35 +190,31 @@ export async function getSavedNotes(userId, page = 1, limit = 10) {
  * UPDATE PROFILE (With Admin Protection & R2 Auto-Delete)
  */
 export async function updateProfile(userId, data) {
-  await connectDB();
   try {
-    const targetUser = await User.findById(userId);
+    const db = getDb();
+    const targetUser = (await db.select().from(users).where(eq(users.id, userId)))[0];
     if (!targetUser) return { success: false, error: "User not found" };
 
     // 🚀 ADMIN IMPERSONATION PROTECTION
     if (data.name && data.name.toLowerCase().includes('admin')) {
-      // Only allow if their email exactly matches the Root Admin email
       if (targetUser.email !== process.env.NEXT_PUBLIC_MAIN_ADMIN_EMAIL) {
-        return { 
-          success: false, 
-          error: "The term 'Admin' is reserved for system administrators and cannot be used in your name." 
-        };
+        return { success: false, error: "The term 'Admin' is reserved." };
       }
     }
 
-    // ✅ R2 CLEANUP: If profile update includes a new avatarKey, delete the old one
-    if (data.avatarKey) {
-        if (targetUser.avatarKey && targetUser.avatarKey !== data.avatarKey) {
-            await deleteFileFromR2(targetUser.avatarKey);
-        }
+    // ✅ R2 CLEANUP
+    if (data.avatarKey && targetUser.avatarKey && targetUser.avatarKey !== data.avatarKey) {
+        await deleteFileFromR2(targetUser.avatarKey);
     }
 
-    const updatedUser = await User.findByIdAndUpdate(userId, data, { new: true }).select('-password').lean();
+    await db.update(users).set(data).where(eq(users.id, userId));
+    const updatedUser = (await db.select().from(users).where(eq(users.id, userId)))[0];
+    delete updatedUser.password;
     
     revalidatePath('/profile');
     revalidatePath(`/profile/${userId}`);
     
-    return { success: true, user: JSON.parse(JSON.stringify(updatedUser)) };
+    return { success: true, user: updatedUser };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -197,20 +222,23 @@ export async function updateProfile(userId, data) {
 
 /**
  * 🚀 GET FOLLOWING USERS
- * Returns the list of users the current user is following
  */
 export async function getFollowingUsers(userId) {
-  await connectDB();
   try {
-    const user = await User.findById(userId)
-      // 🚀 THE FIX: Added isVerifiedEducator
-      .populate('following', 'name avatar role bio isVerifiedEducator') // Fetch details of followed users
-      .select('following')
-      .lean();
+    const db = getDb();
+    const following = await db.select({
+      id: users.id,
+      name: users.name,
+      avatar: users.avatar,
+      role: users.role,
+      bio: users.bio,
+      isVerifiedEducator: users.isVerifiedEducator
+    })
+    .from(userFollows)
+    .innerJoin(users, eq(userFollows.followingId, users.id))
+    .where(eq(userFollows.followerId, userId));
 
-    if (!user || !user.following) return [];
-
-    return JSON.parse(JSON.stringify(user.following));
+    return following;
   } catch (error) {
     console.error("Error fetching following list:", error);
     return [];
@@ -221,57 +249,43 @@ export async function getFollowingUsers(userId) {
  * TOGGLE FOLLOW
  */
 export async function toggleFollow(currentUserId, targetUserId) {
-  await connectDB();
   try {
     if (currentUserId === targetUserId) return { success: false, error: "Cannot follow yourself" };
 
-    const currentUser = await User.findById(currentUserId);
-    const targetUser = await User.findById(targetUserId);
+    const db = getDb();
+    const currentUser = (await db.select().from(users).where(eq(users.id, currentUserId)))[0];
+    if (!currentUser) return { success: false, error: "User not found" };
 
-    if (!currentUser || !targetUser) return { success: false, error: "User not found" };
+    const existingFollow = await db.select()
+      .from(userFollows)
+      .where(and(eq(userFollows.followerId, currentUserId), eq(userFollows.followingId, targetUserId)));
 
-    // 🚀 FIX: Convert both to strings explicitly to ensure bulletproof comparison
-    const currentIdStr = currentUserId.toString();
-    const targetIdStr = targetUserId.toString();
+    let isFollowing = false;
 
-    const isFollowing = currentUser.following.some(id => id.toString() === targetIdStr);
-
-    if (isFollowing) {
-      // Unfollow logic
-      currentUser.following = currentUser.following.filter(id => id.toString() !== targetIdStr);
-      targetUser.followers = targetUser.followers.filter(id => id.toString() !== currentIdStr);
+    if (existingFollow.length > 0) {
+      // Unfollow
+      await db.delete(userFollows).where(and(eq(userFollows.followerId, currentUserId), eq(userFollows.followingId, targetUserId)));
     } else {
-      // Follow logic
-      currentUser.following.push(targetUserId);
-      targetUser.followers.push(currentUserId);
-    }
+      // Follow
+      await db.insert(userFollows).values({ followerId: currentUserId, followingId: targetUserId });
+      isFollowing = true;
 
-    await currentUser.save();
-    await targetUser.save();
-
-    // ==========================================
-    // 🚀 TRIGGER NOTIFICATION (ONLY ON FOLLOW)
-    // ==========================================
-    if (!isFollowing) {
-      // Fetching currentUser.name ensures the recipient knows exactly who it is
+      // Notify
       const followerName = currentUser.name || "A student";
-      
       await createNotification({
         recipientId: targetUserId,
         actorId: currentUserId,
         type: 'SYSTEM',
         message: `${followerName} started following you!`,
-        link: `/profile/${currentUserId}` // Clicking the notification opens the new follower's profile
+        link: `/profile/${currentUserId}`
       });
     }
 
-    // 🚀 FORCE CACHE BUSTING GLOBALLY FOR THESE PAGES
     revalidatePath(`/profile/${targetUserId}`, 'page');
     revalidatePath('/feed', 'page');
     revalidatePath('/profile', 'page'); 
     
-    return { success: true, isFollowing: !isFollowing };
-
+    return { success: true, isFollowing };
   } catch (error) {
     console.error("Toggle Follow Error:", error);
     return { success: false, error: error.message };
@@ -282,32 +296,36 @@ export async function toggleFollow(currentUserId, targetUserId) {
  * GET USER FEED
  */
 export async function getUserFeed(userId) {
-  await connectDB();
   try {
-    const user = await User.findById(userId);
-    if (!user || !user.following.length) return [];
+    const db = getDb();
+    
+    const followingIdsResult = await db.select({ followingId: userFollows.followingId })
+                                       .from(userFollows)
+                                       .where(eq(userFollows.followerId, userId));
+    
+    const followingIds = followingIdsResult.map(f => f.followingId);
+    if (!followingIds.length) return [];
 
-    const notes = await Note.find({ user: { $in: user.following } })
-      .sort({ uploadDate: -1 })
-      .limit(20)
-      // 🚀 THE FIX: Added isVerifiedEducator
-      .populate('user', 'name avatar role isVerifiedEducator')
-      .lean();
+    const feedNotes = await db.select({ note: notes, user: users })
+      .from(notes)
+      .innerJoin(users, eq(notes.userId, users.id))
+      .where(inArray(notes.userId, followingIds))
+      .orderBy(desc(notes.createdAt))
+      .limit(20);
 
-    const blogs = await Blog.find({ author: { $in: user.following } })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      // 🚀 THE FIX: Added isVerifiedEducator
-      .populate('author', 'name avatar role isVerifiedEducator')
-      .lean();
+    const feedBlogs = await db.select({ blog: blogs, user: users })
+      .from(blogs)
+      .innerJoin(users, eq(blogs.authorId, users.id))
+      .where(inArray(blogs.authorId, followingIds))
+      .orderBy(desc(blogs.createdAt))
+      .limit(10);
 
     const feed = [
-      ...notes.map(n => ({ ...n, type: 'note', date: n.uploadDate })),
-      ...blogs.map(b => ({ ...b, type: 'blog', date: b.createdAt }))
+      ...feedNotes.map(n => ({ ...n.note, user: n.user, type: 'note', date: n.note.createdAt })),
+      ...feedBlogs.map(b => ({ ...b.blog, user: b.user, type: 'blog', date: b.blog.createdAt }))
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    return JSON.parse(JSON.stringify(feed));
-
+    return feed;
   } catch (error) {
     console.error("Feed Error:", error);
     return [];
@@ -319,42 +337,28 @@ export async function getUserFeed(userId) {
  */
 export async function toggleSaveNote(userId, noteId) {
   try {
-    await connectDB();
+    if (!userId || !noteId) return { success: false, error: "Missing ID." };
+    const db = getDb();
 
-    if (!userId || !noteId) {
-      return { success: false, error: "Missing user or note ID." };
-    }
+    const existing = await db.select()
+      .from(userBookmarks)
+      .where(and(eq(userBookmarks.userId, userId), eq(userBookmarks.noteId, noteId)));
 
-    const user = await User.findById(userId);
-    if (!user) return { success: false, error: "User not found." };
-
-    // Convert noteId to string for safe comparison
-    const targetNoteId = noteId.toString();
-    
-    // Check if the note is already in the user's savedNotes array
-    const isSaved = user.savedNotes.some(id => id.toString() === targetNoteId);
-
-    if (isSaved) {
-      // Remove it
-      await User.findByIdAndUpdate(userId, { 
-        $pull: { savedNotes: targetNoteId } 
-      });
+    let isSaved = false;
+    if (existing.length > 0) {
+      await db.delete(userBookmarks).where(and(eq(userBookmarks.userId, userId), eq(userBookmarks.noteId, noteId)));
     } else {
-      // Add it
-      await User.findByIdAndUpdate(userId, { 
-        $addToSet: { savedNotes: targetNoteId } 
-      });
+      await db.insert(userBookmarks).values({ userId, noteId });
+      isSaved = true;
     }
 
-    // Revalidate paths where saved notes appear so the UI updates
     revalidatePath("/profile");
     revalidatePath("/feed");
-    revalidatePath(`/notes/${targetNoteId}`); // If you use ID for routes
-    
-    return { success: true, isSaved: !isSaved };
+    revalidatePath(`/notes/${noteId}`); 
+    return { success: true, isSaved };
   } catch (error) {
     console.error("Toggle Save Note Error:", error);
-    return { success: false, error: "Failed to save note. Please try again." };
+    return { success: false, error: "Failed to save note." };
   }
 }
 
@@ -363,10 +367,8 @@ export async function toggleSaveNote(userId, noteId) {
  */
 export async function updateLastSeen(userId) {
   try {
-    await connectDB();
-    await User.findByIdAndUpdate(userId, { 
-      lastSeen: new Date() 
-    });
+    const db = getDb();
+    await db.update(users).set({ lastSeen: new Date() }).where(eq(users.id, userId));
     return { success: true };
   } catch (error) {
     console.error("Failed to update last seen:", error);
@@ -376,38 +378,33 @@ export async function updateLastSeen(userId) {
 
 /**
  * 🚀 FETCH USER'S PURCHASED PREMIUM NOTES
- * Includes 'isArchived' to ensure permanent access even after author deletion.
  */
 export async function getPurchasedNotes() {
-  await connectDB();
-  const session = await getServerSession(authOptions);
-  if (!session) return { success: false, error: "Unauthorized", notes: [] };
-
   try {
-    // Find the user and populate the 'purchasedNotes' array with full Note data
-    const user = await User.findById(session.user.id)
-      .populate({
-        path: 'purchasedNotes',
-        populate: { 
-            path: 'user', 
-            select: 'name avatar isVerifiedEducator' 
-        }
-      })
-      .lean();
+    const session = await auth();
+    if (!session) return { success: false, error: "Unauthorized", notes: [] };
 
-    if (!user || !user.purchasedNotes) {
-        return { success: true, notes: [] };
-    }
+    const db = getDb();
+    
+    const boughtNotes = await db.select({
+      note: notes,
+      user: {
+        id: users.id,
+        name: users.name,
+        avatar: users.avatar,
+        isVerifiedEducator: users.isVerifiedEducator
+      }
+    })
+    .from(purchases)
+    .innerJoin(notes, eq(purchases.itemId, notes.id))
+    .innerJoin(users, eq(notes.userId, users.id))
+    .where(and(eq(purchases.userId, session.user.id), eq(purchases.itemType, 'note')));
 
-    // Serialize data and ensure 'isArchived' is passed to the UI
-    const safeNotes = user.purchasedNotes.map(n => ({
-      ...n,
-      _id: n._id.toString(),
-      user: n.user ? { ...n.user, _id: n.user._id.toString() } : null,
-      isArchived: n.isArchived || false, // 🛡️ CRITICAL: Allow UI to show "Archived" badge
-      uploadDate: n.uploadDate ? new Date(n.uploadDate).toISOString() : new Date().toISOString(),
-      createdAt: n.createdAt ? new Date(n.createdAt).toISOString() : new Date().toISOString(),
-      updatedAt: n.updatedAt ? new Date(n.updatedAt).toISOString() : new Date().toISOString(),
+    const safeNotes = boughtNotes.map(row => ({
+      ...row.note,
+      user: row.user,
+      id: row.note.id, 
+      isArchived: row.note.isArchived || false,
       reviews: [] 
     }));
 
@@ -420,64 +417,49 @@ export async function getPurchasedNotes() {
 
 /**
  * 🚀 FETCH USER'S PURCHASED ITEMS (WITH SNAPSHOT PROTECTION)
- * Reads from the immutable Bundle Snapshots so buyers never lose files.
  */
 export async function getPurchasedItems() {
-  await connectDB();
-  const session = await getServerSession(authOptions);
-  if (!session) return { success: false, notes: [], bundles: [] };
-
   try {
-    // 1. Fetch user and populate BOTH notes and the bundle objects inside the array
-    const user = await User.findById(session.user.id)
-      .populate({
-        path: 'purchasedNotes',
-        populate: { path: 'user', select: 'name avatar isVerifiedEducator' }
-      })
-      .populate({
-        // 🚀 CRITICAL FIX: The path must point to the 'bundle' field inside the 'purchasedBundles' array objects
-        path: 'purchasedBundles.bundle',
-        populate: { path: 'user', select: 'name avatar isVerifiedEducator' }
-      })
-      .lean();
+    const session = await auth();
+    if (!session) return { success: false, notes: [], bundles: [] };
 
-    if (!user) return { success: false, notes: [], bundles: [] };
+    const db = getDb();
+    
+    // 1. Fetch individual notes
+    const { notes: purchasedNotesList } = await getPurchasedNotes();
 
-    // 2. Serialize purchased individual notes
-    const safeNotes = JSON.parse(JSON.stringify(user.purchasedNotes || []));
+    // 2. Fetch purchased bundles
+    const boughtBundles = await db.select({
+      purchase: purchases,
+      bundle: collections,
+      user: {
+        id: users.id,
+        name: users.name,
+        avatar: users.avatar,
+        isVerifiedEducator: users.isVerifiedEducator
+      }
+    })
+    .from(purchases)
+    .innerJoin(collections, eq(purchases.itemId, collections.id))
+    .innerJoin(users, eq(collections.userId, users.id))
+    .where(and(eq(purchases.userId, session.user.id), eq(purchases.itemType, 'collection')));
 
-    // 3. 🚀 BUNDLE SNAPSHOT RECONSTRUCTION
-    // We map through purchasedBundles and manually inject the snapshot version
-    const safeBundles = (user.purchasedBundles || []).map(pb => {
-      // If for some reason the bundle document was deleted from DB, skip it
-      if (!pb.bundle) return null;
-
-      const bundleDoc = pb.bundle;
-      
+    // 3. Reconstruct snapshot
+    const safeBundles = boughtBundles.map(row => {
+      const notesSnapshot = row.purchase.notesSnapshot ? JSON.parse(row.purchase.notesSnapshot) : [];
       return {
-        ...bundleDoc,
-        _id: bundleDoc._id.toString(),
-        user: bundleDoc.user ? {
-          ...bundleDoc.user,
-          _id: bundleDoc.user._id.toString()
-        } : null,
-        
-        // 🚀 THIS FIXES THE "0 BUNDLES" / "0 NOTES" ISSUE:
-        // We overwrite the bundle's 'notes' array with the 'notesSnapshot' 
-        // that was saved in the User document at the time of purchase.
-        notes: pb.notesSnapshot && pb.notesSnapshot.length > 0 
-          ? pb.notesSnapshot.map(id => id.toString()) 
-          : (bundleDoc.notes ? bundleDoc.notes.map(n => n.toString()) : []),
-          
-        purchasedAt: pb.purchasedAt ? new Date(pb.purchasedAt).toISOString() : null,
-        isArchived: bundleDoc.isArchived || false
+        ...row.bundle,
+        id: row.bundle.id,
+        user: row.user,
+        notes: notesSnapshot, // Use the snapshot version frozen at purchase time
+        purchasedAt: row.purchase.purchasedAt,
       };
-    }).filter(Boolean); // Remove nulls (deleted bundles)
+    });
 
     return { 
       success: true, 
-      notes: safeNotes, 
-      bundles: JSON.parse(JSON.stringify(safeBundles)) 
+      notes: purchasedNotesList, 
+      bundles: safeBundles 
     };
   } catch (error) {
     console.error("Error fetching purchased items:", error);

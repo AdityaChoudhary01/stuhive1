@@ -1,0 +1,25 @@
+name = "stuhive"
+compatibility_date = "2024-03-20"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+# 🗄️ D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "stuhive-db"
+database_id = "YOUR_D1_DATABASE_ID" # You'll get this after creating the DB in Cloudflare
+
+# 🪣 R2 Storage Binding
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "stuhive-storage"
+
+# ⚡ KV Cache Binding
+[[kv_namespaces]]
+binding = "KV_CACHE"
+id = "YOUR_KV_NAMESPACE_ID" # You'll get this after creating the KV in Cloudflare
+
+# 🔐 Environment Variables (Non-Secrets)
+[vars]
+NEXTAUTH_URL = "https://www.stuhive.in"
+# Add any other non-sensitive public variables here

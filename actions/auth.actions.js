@@ -1,15 +1,15 @@
-"use server";
+'use server';
 
-import connectDB from "@/lib/db";
-import User from "@/lib/models/User";
+import { getDb } from "@/lib/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { hash } from "bcrypt-ts"; // 🚀 Edge-compatible bcrypt
 import { indexNewContent } from "@/lib/googleIndexing"; 
-import { pingIndexNow } from "@/lib/indexnow"; // 🚀 ADDED: IndexNow Integration
+import { pingIndexNow } from "@/lib/indexnow"; 
 
-const APP_URL = process.env.NEXTAUTH_URL || "https://www.stuhive.in"; // 🚀 ADDED: Base URL for IndexNow
+const APP_URL = process.env.NEXTAUTH_URL || "https://www.stuhive.in";
 
 export async function registerUser(formData) {
-  await connectDB();
-
   try {
     const { name, email, password } = formData;
 
@@ -18,9 +18,7 @@ export async function registerUser(formData) {
     }
 
     // 🚀 ADMIN IMPERSONATION PROTECTION (Strict Check)
-    // Blocks "admin", "Admin", "Super Admin", "aDmIn", etc.
     if (name.toLowerCase().includes('admin')) {
-      // Only allow if their email exactly matches the Root Admin email in your .env file
       if (email !== process.env.NEXT_PUBLIC_MAIN_ADMIN_EMAIL) {
         return { 
           success: false, 
@@ -29,32 +27,37 @@ export async function registerUser(formData) {
       }
     }
 
+    const db = getDb();
+
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    const existingUsers = await db.select().from(users).where(eq(users.email, email));
+    if (existingUsers.length > 0) {
       return { success: false, error: "Email is already registered" };
     }
 
-    // 🚀 THE FIX: Pass the plain-text password directly. 
-    // Mongoose's pre('save') hook will hash it exactly once.
-    const newUser = new User({
+    // 🚀 Explicitly hash the password before inserting (Replaces Mongoose pre-save hook)
+    const hashedPassword = await hash(password, 10);
+    const newUserId = crypto.randomUUID();
+
+    // Insert the new user
+    await db.insert(users).values({
+      id: newUserId,
       name,
       email,
-      password, // <--- Plain text goes here
+      password: hashedPassword,
+      role: 'user', // Default role
     });
 
-    await newUser.save(); // <--- Mongoose hashes it here
-
     // 🚀 SEO: Instantly ping Google & IndexNow to index the new public profile!
-    // Notice we DO NOT 'await' these. They run in the background so the user doesn't have to wait.
+    // Notice we DO NOT 'await' these. They run in the background.
     
     // 1. Google Ping
-    indexNewContent(newUser._id.toString(), 'profile')
+    indexNewContent(newUserId, 'profile')
       .then(status => console.log(`[SEO] Google Profile Ping: ${status ? 'DELIVERED' : 'FAILED'}`))
       .catch(err => console.error(`[SEO] Google Profile Ping Error:`, err));
     
     // 2. IndexNow Ping (Bing, Yahoo, Yandex, etc.)
-    pingIndexNow([`${APP_URL}/profile/${newUser._id.toString()}`])
+    pingIndexNow([`${APP_URL}/profile/${newUserId}`])
       .then(status => console.log(`[SEO] IndexNow Profile Ping: ${status ? 'DELIVERED' : 'FAILED'}`))
       .catch(err => console.error(`[SEO] IndexNow Profile Ping Error:`, err));
     

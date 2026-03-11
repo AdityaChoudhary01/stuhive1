@@ -1,42 +1,62 @@
-"use server";
+'use server';
 
-import connectDB from "@/lib/db";
-import Collection from "@/lib/models/Collection"; 
-import Note from "@/lib/models/Note"; 
-import User from "@/lib/models/User"; 
+import { getDb } from "@/lib/db";
+import { collections, notes, users, collectionNotes, purchases } from "@/db/schema";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { awardHivePoints } from "@/actions/leaderboard.actions";
 import { indexNewContent, removeContentFromIndex } from "@/lib/googleIndexing"; 
 import { pingIndexNow } from "@/lib/indexnow";
-import { getServerSession } from "next-auth"; // 🚀 Added for security
-import { authOptions } from "@/lib/auth"; // 🚀 Added for session options
+import { auth } from "@/lib/auth"; // 🚀 Auth.js v5
 
 const APP_URL = process.env.NEXTAUTH_URL || "https://www.stuhive.in";
 
 /**
- * 1. FETCH ALL USER COLLECTIONS (🚀 UPDATED FOR CHUNKING PAGINATION)
+ * 🛠️ HELPER: Attach relational arrays (notes, purchasedBy) to Collections efficiently
+ */
+async function attachRelationsToCollections(db, collectionsList) {
+  if (collectionsList.length === 0) return [];
+  const collectionIds = collectionsList.map(c => c.id);
+
+  // Fetch all notes for these collections
+  const allNotes = await db.select({ collectionId: collectionNotes.collectionId, noteId: collectionNotes.noteId })
+    .from(collectionNotes)
+    .where(inArray(collectionNotes.collectionId, collectionIds));
+
+  // Fetch all buyers for these collections
+  const allBuyers = await db.select({ collectionId: purchases.itemId, userId: purchases.userId })
+    .from(purchases)
+    .where(and(eq(purchases.itemType, 'collection'), inArray(purchases.itemId, collectionIds)));
+
+  return collectionsList.map(col => {
+    const colNotes = allNotes.filter(n => n.collectionId === col.id).map(n => n.noteId);
+    const colBuyers = allBuyers.filter(b => b.collectionId === col.id).map(b => b.userId);
+    return {
+      ...col,
+      _id: col.id,
+      notes: colNotes,
+      purchasedBy: colBuyers,
+      user: typeof col.userId === 'string' ? col.userId : (col.user ? { ...col.user, _id: col.user.id } : null)
+    };
+  });
+}
+
+/**
+ * 1. FETCH ALL USER COLLECTIONS
  */
 export async function getUserCollections(userId, page = 1, limit = 120) {
-  await connectDB();
   try {
+    const db = getDb();
     const skip = (page - 1) * limit;
 
-    const collections = await Collection.find({ user: userId })
-      .sort({ createdAt: -1 })
-      .skip(skip)
+    const fetchedCollections = await db.select()
+      .from(collections)
+      .where(eq(collections.userId, userId))
+      .orderBy(desc(collections.createdAt))
       .limit(limit)
-      .lean();
+      .offset(skip);
 
-    return collections.map(col => ({
-      ...col,
-      _id: col._id.toString(),
-      user: col.user.toString(),
-      notes: col.notes ? col.notes.map(id => id.toString()) : [],
-      // 🚀 FIXED: Serialize the newly added purchasedBy array
-      purchasedBy: col.purchasedBy ? col.purchasedBy.map(id => id.toString()) : [],
-      createdAt: col.createdAt?.toISOString(),
-      updatedAt: col.updatedAt?.toISOString(),
-    }));
+    return await attachRelationsToCollections(db, fetchedCollections);
   } catch (error) {
     console.error("Error fetching collections:", error);
     return [];
@@ -47,17 +67,36 @@ export async function getUserCollections(userId, page = 1, limit = 120) {
  * 2. FETCH SINGLE COLLECTION WITH NOTES (BY ID)
  */
 export async function getCollectionById(collectionId) {
-  await connectDB();
   try {
-    const collection = await Collection.findById(collectionId)
-      .populate({
-        path: 'notes',
-        populate: { path: 'user', select: 'name avatar isVerifiedEducator' }
-      })
-      .lean();
+    const db = getDb();
+    const colRows = await db.select({ collection: collections, user: users })
+      .from(collections)
+      .leftJoin(users, eq(collections.userId, users.id))
+      .where(eq(collections.id, collectionId))
+      .limit(1);
 
-    if (!collection) return null;
-    return JSON.parse(JSON.stringify(collection));
+    if (colRows.length === 0) return null;
+    const { collection, user } = colRows[0];
+
+    // Fetch Notes with Authors
+    const noteRows = await db.select({ note: notes, author: users })
+      .from(collectionNotes)
+      .innerJoin(notes, eq(collectionNotes.noteId, notes.id))
+      .leftJoin(users, eq(notes.userId, users.id))
+      .where(eq(collectionNotes.collectionId, collectionId));
+
+    const safeNotes = noteRows.map(r => ({
+      ...r.note,
+      _id: r.note.id,
+      user: r.author ? { ...r.author, _id: r.author.id } : null
+    }));
+
+    return {
+      ...collection,
+      _id: collection.id,
+      user: user ? { ...user, _id: user.id } : null,
+      notes: safeNotes
+    };
   } catch (error) {
     console.error("Error fetching collection details:", error);
     return null;
@@ -65,21 +104,39 @@ export async function getCollectionById(collectionId) {
 }
 
 /**
- * 3. FETCH SINGLE COLLECTION BY SLUG (Includes Description for SEO)
+ * 3. FETCH SINGLE COLLECTION BY SLUG
  */
 export async function getCollectionBySlug(slug) {
-  await connectDB();
   try {
-    const collection = await Collection.findOne({ slug, visibility: 'public' })
-      .populate('user', 'name avatar role isVerifiedEducator')
-      .populate({
-        path: 'notes',
-        populate: { path: 'user', select: 'name avatar isVerifiedEducator' }
-      })
-      .lean();
+    const db = getDb();
+    const colRows = await db.select({ collection: collections, user: users })
+      .from(collections)
+      .leftJoin(users, eq(collections.userId, users.id))
+      .where(and(eq(collections.slug, slug), eq(collections.visibility, 'public')))
+      .limit(1);
 
-    if (!collection) return null;
-    return JSON.parse(JSON.stringify(collection));
+    if (colRows.length === 0) return null;
+    const { collection, user } = colRows[0];
+
+    // Fetch Notes with Authors
+    const noteRows = await db.select({ note: notes, author: users })
+      .from(collectionNotes)
+      .innerJoin(notes, eq(collectionNotes.noteId, notes.id))
+      .leftJoin(users, eq(notes.userId, users.id))
+      .where(eq(collectionNotes.collectionId, collection.id));
+
+    const safeNotes = noteRows.map(r => ({
+      ...r.note,
+      _id: r.note.id,
+      user: r.author ? { ...r.author, _id: r.author.id } : null
+    }));
+
+    return {
+      ...collection,
+      _id: collection.id,
+      user: user ? { ...user, _id: user.id } : null,
+      notes: safeNotes
+    };
   } catch (error) {
     console.error("Error fetching collection by slug:", error);
     return null;
@@ -87,37 +144,29 @@ export async function getCollectionBySlug(slug) {
 }
 
 /**
- * 4. FETCH PUBLIC COLLECTIONS (Optimized for Load More Pagination)
+ * 4. FETCH PUBLIC COLLECTIONS
  */
 export async function getPublicCollections({ page = 1, limit = 12 } = {}) {
-  await connectDB();
   try {
+    const db = getDb();
     const pageNum = parseInt(page, 10) || 1;
     const limitNum = parseInt(limit, 10) || 12;
     const skip = (pageNum - 1) * limitNum;
 
-    const collections = await Collection.find({ visibility: 'public' })
-      .populate('user', 'name avatar isVerifiedEducator')
-      .sort({ createdAt: -1 })
-      .skip(skip)
+    const fetchedCols = await db.select({ collection: collections, user: users })
+      .from(collections)
+      .leftJoin(users, eq(collections.userId, users.id))
+      .where(eq(collections.visibility, 'public'))
+      .orderBy(desc(collections.createdAt))
       .limit(limitNum)
-      .lean();
+      .offset(skip);
 
-    const total = await Collection.countDocuments({ visibility: 'public' });
+    const countQuery = await db.select({ count: sql`count(*)` }).from(collections).where(eq(collections.visibility, 'public'));
+    const total = Number(countQuery[0].count);
 
-    const serializedCollections = collections.map(col => ({
-        ...col,
-        _id: col._id.toString(),
-        user: col.user ? {
-            ...col.user,
-            _id: col.user._id.toString()
-        } : null,
-        notes: col.notes ? col.notes.map(n => n.toString()) : [],
-        // 🚀 FIXED: Crucial fix to prevent [{buffer: ...}] error in Client Components
-        purchasedBy: col.purchasedBy ? col.purchasedBy.map(p => p.toString()) : [],
-        createdAt: col.createdAt?.toISOString(),
-        updatedAt: col.updatedAt?.toISOString(),
-    }));
+    // Flatten to match expected structure
+    const flattened = fetchedCols.map(r => ({ ...r.collection, user: r.user }));
+    const serializedCollections = await attachRelationsToCollections(db, flattened);
 
     return {
       collections: serializedCollections,
@@ -131,40 +180,39 @@ export async function getPublicCollections({ page = 1, limit = 12 } = {}) {
 }
 
 /**
- * 5. CREATE COLLECTION (UPDATED FOR PREMIUM BUNDLES)
+ * 5. CREATE COLLECTION
  */
 export async function createCollection(data, userId) {
-  await connectDB();
   try {
-    // 🚀 VALIDATION: If Premium, price must be > 0
+    const db = getDb();
+    
     if (data.isPremium && (!data.price || data.price <= 0)) {
         return { success: false, error: "Premium bundles must have a valid price." };
     }
 
-    const newCollection = await Collection.create({
-      name: data.name || data, // Supports older string-only calls
-      user: userId,
-      notes: [],
-      // Premium bundles are usually public by default
+    const collectionName = data.name || data;
+    const baseSlug = collectionName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const slug = `${baseSlug}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const newId = crypto.randomUUID();
+
+    const newCollection = {
+      id: newId,
+      name: collectionName,
+      userId: userId,
+      slug: slug,
       visibility: data.isPremium ? 'public' : (data.visibility || 'private'), 
       description: data.description || "",
       category: data.category || "University",
       university: data.university || "",
-      
-      // 🚀 PREMIUM FIELDS
       isPremium: data.isPremium || false,
       price: data.isPremium ? Number(data.price) : 0,
-      purchasedBy: []
-    });
+    };
 
-    // 🏆 GAMIFICATION: Reward points
+    await db.insert(collections).values(newCollection);
     await awardHivePoints(userId, 15);
     
     revalidatePath('/profile');
-    return { 
-      success: true, 
-      collection: JSON.parse(JSON.stringify(newCollection)) 
-    };
+    return { success: true, collection: { ...newCollection, _id: newId, notes: [], purchasedBy: [] } };
   } catch (error) {
     console.error("Create Collection Error:", error);
     return { success: false, error: error.message };
@@ -172,70 +220,62 @@ export async function createCollection(data, userId) {
 }
 
 /**
- * 6. UPDATE COLLECTION (Handles Premium Upgrades/Downgrades & Protection)
+ * 6. UPDATE COLLECTION
  */
 export async function updateCollection(collectionId, data, userId) {
-  await connectDB();
   try {
-    const collection = await Collection.findOne({ _id: collectionId, user: userId });
-    if (!collection) return { success: false, error: "Not found or unauthorized" };
+    const db = getDb();
+    const colRows = await db.select().from(collections).where(and(eq(collections.id, collectionId), eq(collections.userId, userId))).limit(1);
+    if (colRows.length === 0) return { success: false, error: "Not found or unauthorized" };
+    const collection = colRows[0];
 
-    // 🚀 FRAUD PROTECTION: Check if bundle has buyers
-    const hasBuyers = collection.purchasedBy && collection.purchasedBy.length > 0;
+    // 🚀 FRAUD PROTECTION
+    const purchasesRows = await db.select({ id: purchases.id }).from(purchases).where(and(eq(purchases.itemId, collectionId), eq(purchases.itemType, 'collection')));
+    const hasBuyers = purchasesRows.length > 0;
 
-    // Rule: If it has sales, it CANNOT be made private (must remain available for buyers)
     if (hasBuyers && data.visibility === 'private') {
-      return { 
-        success: false, 
-        error: "This bundle has active buyers. You cannot make it private, but you can Archive it to hide it from new users." 
-      };
+      return { success: false, error: "This bundle has active buyers. You cannot make it private, but you can Archive it." };
     }
 
     // 🚀 STRICT PREMIUM VALIDATION FOR UPGRADES
     if (data.isPremium && !collection.isPremium) {
-      if (collection.notes.length > 0) {
-        const existingNotes = await Note.find({ _id: { $in: collection.notes } });
+      const colNotes = await db.select({ noteId: collectionNotes.noteId }).from(collectionNotes).where(eq(collectionNotes.collectionId, collectionId));
+      if (colNotes.length > 0) {
+        const noteIds = colNotes.map(n => n.noteId);
+        const existingNotes = await db.select().from(notes).where(inArray(notes.id, noteIds));
         
         for (const note of existingNotes) {
-          // Rule 1: Note must be owned by the bundle creator
-          if (note.user.toString() !== userId.toString()) {
-            return { 
-              success: false, 
-              error: "Cannot upgrade. This bundle contains notes from other users." 
-            };
+          if (note.userId !== userId) {
+            return { success: false, error: "Cannot upgrade. This bundle contains notes from other users." };
           }
-          // 🚀 Rule 2: Note must be a Premium note individually
           if (!note.isPaid || note.price <= 0) {
-            return { 
-              success: false, 
-              error: "Cannot upgrade. All notes in a Premium Bundle must be individually priced Premium notes first." 
-            };
+            return { success: false, error: "Cannot upgrade. All notes in a Premium Bundle must be individually priced Premium notes first." };
           }
         }
       }
     }
 
-    if (data.name !== undefined) collection.name = data.name;
-    if (data.visibility !== undefined) collection.visibility = data.visibility;
-    if (data.description !== undefined) collection.description = data.description;
-    if (data.university !== undefined) collection.university = data.university;
-    if (data.category !== undefined) collection.category = data.category;
+    const updateData = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.visibility !== undefined) updateData.visibility = data.visibility;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.university !== undefined) updateData.university = data.university;
+    if (data.category !== undefined) updateData.category = data.category;
+    if (data.isPremium !== undefined) updateData.isPremium = data.isPremium;
+    if (data.price !== undefined) updateData.price = data.isPremium ? Number(data.price) : 0;
+
+    await db.update(collections).set(updateData).where(eq(collections.id, collectionId));
     
-    // 🚀 UPDATE PREMIUM STATUS
-    if (data.isPremium !== undefined) collection.isPremium = data.isPremium;
-    if (data.price !== undefined) collection.price = data.isPremium ? Number(data.price) : 0;
-
-    await collection.save();
-
-    // 🚀 SEO INDEXING LOGIC (GOOGLE + INDEXNOW)
+    // SEO Indexing
     if (collection.slug) {
         const url = `${APP_URL}/shared-collections/${collection.slug}`;
-        if (collection.visibility === 'public') {
-            await indexNewContent(collection.slug, "collection");
-            await pingIndexNow(url);
-        } else if (collection.visibility === 'private' && data.visibility === 'private') {
-            await removeContentFromIndex(collection.slug, "collection");
-            await pingIndexNow(url); 
+        const newVis = updateData.visibility || collection.visibility;
+        if (newVis === 'public') {
+            await indexNewContent(collection.slug, "collection").catch(()=>{});
+            await pingIndexNow([url]).catch(()=>{});
+        } else if (newVis === 'private') {
+            await removeContentFromIndex(collection.slug, "collection").catch(()=>{});
+            await pingIndexNow([url]).catch(()=>{});
         }
     }
 
@@ -244,15 +284,7 @@ export async function updateCollection(collectionId, data, userId) {
     revalidatePath(`/collections/${collectionId}`);
     if (collection.slug) revalidatePath(`/shared-collections/${collection.slug}`);
     
-    if (collection.university) {
-      const uniSlug = collection.university.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-      revalidatePath(`/univ/${uniSlug}`);
-    }
-    
-    return { 
-      success: true, 
-      collection: JSON.parse(JSON.stringify(collection.toObject())) 
-    };
+    return { success: true, collection: { ...collection, ...updateData, _id: collection.id } };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -269,22 +301,21 @@ export async function renameCollection(collectionId, newName, userId) {
  * 8. DELETE COLLECTION (With Buyer Protection)
  */
 export async function deleteCollection(collectionId, userId) {
-  await connectDB();
   try {
-    const collection = await Collection.findOne({ _id: collectionId, user: userId });
-    if (!collection) return { success: false, error: "Not found or unauthorized" };
+    const db = getDb();
+    const colRows = await db.select().from(collections).where(and(eq(collections.id, collectionId), eq(collections.userId, userId))).limit(1);
+    if (colRows.length === 0) return { success: false, error: "Not found or unauthorized" };
+    const collection = colRows[0];
 
-    // 🚀 FRAUD PROTECTION: If the bundle has buyers, we ARCHIVE instead of deleting
-    const hasBuyers = collection.purchasedBy && collection.purchasedBy.length > 0;
+    const purchasesRows = await db.select({ id: purchases.id }).from(purchases).where(and(eq(purchases.itemId, collectionId), eq(purchases.itemType, 'collection')));
+    const hasBuyers = purchasesRows.length > 0;
 
     if (hasBuyers) {
-      collection.visibility = 'private'; // Hide from public browse
-      collection.isArchived = true;      // Mark as archived for protection
-      await collection.save();
+      await db.update(collections).set({ visibility: 'private', isArchived: true }).where(eq(collections.id, collectionId));
 
       if (collection.slug) {
-        await removeContentFromIndex(collection.slug, "collection");
-        await pingIndexNow(`${APP_URL}/shared-collections/${collection.slug}`);
+        await removeContentFromIndex(collection.slug, "collection").catch(()=>{});
+        await pingIndexNow([`${APP_URL}/shared-collections/${collection.slug}`]).catch(()=>{});
       }
 
       revalidatePath('/profile');
@@ -292,23 +323,17 @@ export async function deleteCollection(collectionId, userId) {
       return { success: true, message: "Bundle archived. Existing buyers still have access." };
     }
 
-    // If zero sales, proceed with PERMANENT deletion
-    await Collection.findByIdAndDelete(collectionId);
+    // Permanent Deletion
+    await db.delete(collectionNotes).where(eq(collectionNotes.collectionId, collectionId));
+    await db.delete(collections).where(eq(collections.id, collectionId));
 
     if (collection.visibility === 'public' && collection.slug) {
-        const url = `${APP_URL}/shared-collections/${collection.slug}`;
-        await removeContentFromIndex(collection.slug, "collection");
-        await pingIndexNow(url);
+        await removeContentFromIndex(collection.slug, "collection").catch(()=>{});
+        await pingIndexNow([`${APP_URL}/shared-collections/${collection.slug}`]).catch(()=>{});
     }
 
     revalidatePath('/profile');
     revalidatePath('/shared-collections');
-    
-    if (collection.university) {
-      const uniSlug = collection.university.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-      revalidatePath(`/univ/${uniSlug}`);
-    }
-
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -316,50 +341,42 @@ export async function deleteCollection(collectionId, userId) {
 }
 
 /**
- * 9. ADD NOTE TO COLLECTION (With Premium Ownership Check)
+ * 9. ADD NOTE TO COLLECTION
  */
 export async function addNoteToCollection(collectionId, noteId, userId) {
-  await connectDB();
   try {
-    const collection = await Collection.findOne({ _id: collectionId, user: userId });
-    if (!collection) return { success: false, error: "Collection not found." };
+    const db = getDb();
+    const colRows = await db.select().from(collections).where(and(eq(collections.id, collectionId), eq(collections.userId, userId))).limit(1);
+    if (colRows.length === 0) return { success: false, error: "Collection not found." };
+    const collection = colRows[0];
 
-    // 🚀 STRICT PREMIUM VALIDATION FOR ADDING NOTES
     if (collection.isPremium) {
-        const noteToAdd = await Note.findById(noteId);
-        if (!noteToAdd) return { success: false, error: "Note not found." };
+        const noteRows = await db.select().from(notes).where(eq(notes.id, noteId)).limit(1);
+        if (noteRows.length === 0) return { success: false, error: "Note not found." };
+        const noteToAdd = noteRows[0];
         
-        // Rule 1: Note must be owned by bundle creator
-        if (noteToAdd.user.toString() !== userId.toString()) {
-            return { 
-                success: false, 
-                error: "Premium Bundles can only contain notes uploaded by you." 
-            };
+        if (noteToAdd.userId !== userId) {
+            return { success: false, error: "Premium Bundles can only contain notes uploaded by you." };
         }
-
-        // 🚀 Rule 2: Note must be premium individually
         if (!noteToAdd.isPaid || noteToAdd.price <= 0) {
-            return { 
-                success: false, 
-                error: "Premium Bundles act as discounted packages. You can only add notes that are already set as Premium (Paid) individually." 
-            };
+            return { success: false, error: "Premium Bundles act as discounted packages. You can only add notes that are already set as Premium (Paid) individually." };
         }
     }
 
-    collection.notes.addToSet(noteId);
-    await collection.save();
+    // Insert ignoring duplicates
+    const existing = await db.select().from(collectionNotes).where(and(eq(collectionNotes.collectionId, collectionId), eq(collectionNotes.noteId, noteId)));
+    if (existing.length === 0) {
+      await db.insert(collectionNotes).values({ collectionId, noteId });
+    }
 
     if (collection.visibility === 'public' && collection.slug) {
-        const url = `${APP_URL}/shared-collections/${collection.slug}`;
-        await indexNewContent(collection.slug, "collection");
-        await pingIndexNow(url);
+        await indexNewContent(collection.slug, "collection").catch(()=>{});
+        await pingIndexNow([`${APP_URL}/shared-collections/${collection.slug}`]).catch(()=>{});
     }
 
     revalidatePath('/profile');
     revalidatePath('/shared-collections'); 
     revalidatePath(`/collections/${collectionId}`); 
-    if (collection.slug) revalidatePath(`/shared-collections/${collection.slug}`);
-    
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -370,27 +387,22 @@ export async function addNoteToCollection(collectionId, noteId, userId) {
  * 10. REMOVE NOTE FROM COLLECTION
  */
 export async function removeNoteFromCollection(collectionId, noteId, userId) {
-  await connectDB();
   try {
-    const collection = await Collection.findOneAndUpdate(
-      { _id: collectionId, user: userId },
-      { $pull: { notes: noteId } },
-      { new: true }
-    );
+    const db = getDb();
+    const colRows = await db.select().from(collections).where(and(eq(collections.id, collectionId), eq(collections.userId, userId))).limit(1);
+    if (colRows.length === 0) return { success: false, error: "Not found or unauthorized" };
+    const collection = colRows[0];
 
-    if (!collection) return { success: false, error: "Not found or unauthorized" };
+    await db.delete(collectionNotes).where(and(eq(collectionNotes.collectionId, collectionId), eq(collectionNotes.noteId, noteId)));
 
     if (collection.visibility === 'public' && collection.slug) {
-        const url = `${APP_URL}/shared-collections/${collection.slug}`;
-        await indexNewContent(collection.slug, "collection");
-        await pingIndexNow(url);
+        await indexNewContent(collection.slug, "collection").catch(()=>{});
+        await pingIndexNow([`${APP_URL}/shared-collections/${collection.slug}`]).catch(()=>{});
     }
 
     revalidatePath('/profile');
     revalidatePath('/shared-collections'); 
     revalidatePath(`/collections/${collectionId}`); 
-    if (collection.slug) revalidatePath(`/shared-collections/${collection.slug}`);
-    
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -398,57 +410,65 @@ export async function removeNoteFromCollection(collectionId, noteId, userId) {
 }
 
 /**
- * 🚀 FETCH PURCHASED BUNDLE SNAPSHOT (RESILIENT VERSION)
- * Loads the version of the bundle the user actually paid for.
- * Works even if the author permanently deleted the collection!
+ * 🚀 FETCH PURCHASED BUNDLE SNAPSHOT
  */
 export async function getPurchasedBundleSnapshot(bundleId) {
-  await connectDB();
-  const session = await getServerSession(authOptions);
-  if (!session) return { success: false, error: "Unauthorized" };
-
   try {
-    // 1. Find the user to get their purchase history
-    const user = await User.findById(session.user.id).lean();
-    
-    // 2. Find the specific purchase record for this bundle
-    const purchaseRecord = user?.purchasedBundles?.find(
-      pb => pb.bundle?.toString() === bundleId
-    );
+    const session = await auth();
+    if (!session) return { success: false, error: "Unauthorized" };
 
-    if (!purchaseRecord) {
-      console.error(`[Snapshot] No purchase record found for bundle ID: ${bundleId}`);
+    const db = getDb();
+    const purchaseRows = await db.select()
+      .from(purchases)
+      .where(and(eq(purchases.userId, session.user.id), eq(purchases.itemType, 'collection'), eq(purchases.itemId, bundleId)))
+      .limit(1);
+
+    if (purchaseRows.length === 0) {
       return { success: false, error: "Purchase record not found" };
     }
+    const purchaseRecord = purchaseRows[0];
 
-    // 3. Fetch the current bundle metadata (Name, Description)
-    let bundle = await Collection.findById(bundleId)
-      .populate('user', 'name avatar isVerifiedEducator')
-      .lean();
+    let bundleRows = await db.select({ collection: collections, user: users })
+      .from(collections).leftJoin(users, eq(collections.userId, users.id))
+      .where(eq(collections.id, bundleId))
+      .limit(1);
 
-    // 🚀 GHOST BUNDLE FIX: If the bundle was permanently deleted by the author 
-    // before we implemented the Archive protection, we generate a placeholder.
-    if (!bundle) {
+    let bundle;
+    if (bundleRows.length === 0) {
       bundle = {
         _id: bundleId,
         name: "Deleted Premium Bundle",
         description: "The author removed this collection from the store, but your purchased files are permanently protected here.",
         isArchived: true,
-        user: null // Author data might be gone
+        user: null 
+      };
+    } else {
+      bundle = {
+        ...bundleRows[0].collection,
+        _id: bundleRows[0].collection.id,
+        user: bundleRows[0].user ? { ...bundleRows[0].user, _id: bundleRows[0].user.id } : null
       };
     }
 
-    // 4. Fetch ONLY the notes that were part of the bundle when purchased
-    const snapshotNotes = await Note.find({
-      _id: { $in: purchaseRecord.notesSnapshot || [] }
-    })
-    .populate('user', 'name avatar isVerifiedEducator')
-    .lean();
+    const snapshotNoteIds = purchaseRecord.notesSnapshot ? JSON.parse(purchaseRecord.notesSnapshot) : [];
+    
+    let snapshotNotes = [];
+    if (snapshotNoteIds.length > 0) {
+      const notesResult = await db.select({ note: notes, user: users })
+        .from(notes).leftJoin(users, eq(notes.userId, users.id))
+        .where(inArray(notes.id, snapshotNoteIds));
+        
+      snapshotNotes = notesResult.map(r => ({
+        ...r.note,
+        _id: r.note.id,
+        user: r.user ? { ...r.user, _id: r.user.id } : null
+      }));
+    }
 
     return {
       success: true,
-      bundle: JSON.parse(JSON.stringify(bundle)),
-      notes: JSON.parse(JSON.stringify(snapshotNotes)),
+      bundle: bundle,
+      notes: snapshotNotes,
       purchasedAt: purchaseRecord.purchasedAt
     };
   } catch (error) {
@@ -458,26 +478,18 @@ export async function getPurchasedBundleSnapshot(bundleId) {
 }
 
 /**
- * 🚀 FETCH A USER'S PUBLIC COLLECTIONS ONLY (For Public Profile)
+ * 🚀 FETCH A USER'S PUBLIC COLLECTIONS ONLY
  */
 export async function getPublicUserCollections(userId, limit = 12) {
-  await connectDB();
   try {
-    const collections = await Collection.find({ user: userId, visibility: 'public' })
-      .populate('user', 'name avatar isVerifiedEducator')
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
+    const db = getDb();
+    const fetchedCollections = await db.select()
+      .from(collections)
+      .where(and(eq(collections.userId, userId), eq(collections.visibility, 'public')))
+      .orderBy(desc(collections.createdAt))
+      .limit(limit);
 
-    return collections.map(col => ({
-      ...col,
-      _id: col._id.toString(),
-      user: col.user ? { ...col.user, _id: col.user._id.toString() } : null,
-      notes: col.notes ? col.notes.map(n => n.toString()) : [],
-      purchasedBy: col.purchasedBy ? col.purchasedBy.map(p => p.toString()) : [],
-      createdAt: col.createdAt?.toISOString(),
-      updatedAt: col.updatedAt?.toISOString(),
-    }));
+    return await attachRelationsToCollections(db, fetchedCollections);
   } catch (error) {
     console.error("Error fetching public user collections:", error);
     return [];

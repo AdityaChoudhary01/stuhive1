@@ -1,12 +1,9 @@
+export const runtime = "edge";
+
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/db";
-import Note from "@/lib/models/Note";
-import Blog from "@/lib/models/Blog";
-import User from "@/lib/models/User";
-import Collection from "@/lib/models/Collection";
-import Opportunity from "@/lib/models/Opportunity"; 
-import StudyEvent from "@/lib/models/StudyEvent"; 
-import University from "@/lib/models/University"; 
+import { getDb } from "@/lib/db";
+import { notes, blogs, users, collections, opportunities, studyEvents, universities } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const APP_URL = process.env.NEXTAUTH_URL || "https://www.stuhive.in";
 const INDEXNOW_KEY = "363d05a6f7284bcf8b9060f495d58655";
@@ -15,92 +12,55 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get("secret");
   
-  // 🛡️ Security Check
   if (secret !== "my-super-secret-trigger") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    await connectDB();
-
-    // 1. Static & Main Hub Pages (Consolidated from your lists)
+    const db = getDb();
     let urls = [
-      `${APP_URL}/`,
-      `${APP_URL}/about`,
-      `${APP_URL}/contact`,
-      `${APP_URL}/blogs`,
-      `${APP_URL}/global-search`,
-      `${APP_URL}/search`,
-      `${APP_URL}/shared-collections`,
-      `${APP_URL}/requests`,
-      `${APP_URL}/login`,
-      `${APP_URL}/signup`,
-      `${APP_URL}/roadmaps`,
-      `${APP_URL}/updates`,
-      `${APP_URL}/donate`,
-      `${APP_URL}/supporters`,
-      `${APP_URL}/terms`,
-      `${APP_URL}/privacy`,
-      `${APP_URL}/dmca`,
-      `${APP_URL}/hive-points`,
-      `${APP_URL}/premium-purchase-policy`,
-      `${APP_URL}/leaderboard`,
+      `${APP_URL}/`, `${APP_URL}/about`, `${APP_URL}/contact`, `${APP_URL}/blogs`,
+      `${APP_URL}/global-search`, `${APP_URL}/search`, `${APP_URL}/shared-collections`,
+      `${APP_URL}/requests`, `${APP_URL}/login`, `${APP_URL}/signup`, `${APP_URL}/roadmaps`,
+      `${APP_URL}/updates`, `${APP_URL}/donate`, `${APP_URL}/supporters`, `${APP_URL}/terms`,
+      `${APP_URL}/privacy`, `${APP_URL}/dmca`, `${APP_URL}/hive-points`, 
+      `${APP_URL}/premium-purchase-policy`, `${APP_URL}/leaderboard`,
     ];
 
-    // 🚀 Parallel Data Fetching
+    // 🚀 Parallel Edge Data Fetching
     const [
-      blogs, 
-      notes, 
-      users, 
-      collections, 
-      opportunities, 
-      roadmaps, 
-      professionalUnivs,
-      noteUnivs
+      dbBlogs, dbNotes, dbUsers, dbCollections, dbOpportunities, dbRoadmaps, dbUnivs
     ] = await Promise.all([
-      Blog.find({}).select('slug').lean(),
-      Note.find({}).select('slug _id').lean(), 
-      User.find({}).select('_id').lean(),
-      Collection.find({ visibility: 'public' }).select('slug').lean(),
-      Opportunity.find({ isPublished: true }).select('slug').lean(), 
-      StudyEvent.find({ isPublic: true }).select('slug').lean(), 
-      University.find({}).select('slug').lean(),
-      Note.distinct("university")
+      db.select({ slug: blogs.slug }).from(blogs),
+      db.select({ id: notes.id, slug: notes.slug, university: notes.university }).from(notes),
+      db.select({ id: users.id }).from(users),
+      db.select({ slug: collections.slug }).from(collections).where(eq(collections.visibility, 'public')),
+      db.select({ slug: opportunities.slug }).from(opportunities).where(eq(opportunities.isPublished, true)),
+      db.select({ slug: studyEvents.slug }).from(studyEvents).where(eq(studyEvents.isPublic, true)),
+      db.select({ slug: universities.slug }).from(universities),
     ]);
 
-    // 2. Add Dynamic Blogs
-    blogs.forEach(b => b.slug && urls.push(`${APP_URL}/blogs/${b.slug}`));
+    dbBlogs.forEach(b => b.slug && urls.push(`${APP_URL}/blogs/${b.slug}`));
+    dbNotes.forEach(n => urls.push(`${APP_URL}/notes/${n.slug || n.id}`));
+    dbUsers.forEach(u => urls.push(`${APP_URL}/profile/${u.id}`));
+    dbCollections.forEach(c => c.slug && urls.push(`${APP_URL}/shared-collections/${c.slug}`));
+    dbOpportunities.forEach(o => o.slug && urls.push(`${APP_URL}/updates/${o.slug}`));
+    dbRoadmaps.forEach(r => r.slug && urls.push(`${APP_URL}/roadmaps/${r.slug}`));
 
-    // 3. Add Dynamic Notes
-    notes.forEach(n => urls.push(`${APP_URL}/notes/${n.slug || n._id.toString()}`));
-
-    // 4. Add Dynamic Public Profiles
-    users.forEach(u => urls.push(`${APP_URL}/profile/${u._id.toString()}`));
-
-    // 5. Add Dynamic Public Collections
-    collections.forEach(c => c.slug && urls.push(`${APP_URL}/shared-collections/${c.slug}`));
-
-    // 6. Add Dynamic Exam/Job Updates
-    opportunities.forEach(o => o.slug && urls.push(`${APP_URL}/updates/${o.slug}`));
-
-    // 7. Add Dynamic Public Roadmaps
-    roadmaps.forEach(r => r.slug && urls.push(`${APP_URL}/roadmaps/${r.slug}`));
-
-    // 8. Add University Hubs with Deduplication
     const submittedUnivSlugs = new Set();
     
     // Professional Hubs
-    professionalUnivs.forEach(u => {
+    dbUnivs.forEach(u => {
       if (u.slug) {
         urls.push(`${APP_URL}/univ/${u.slug}`);
         submittedUnivSlugs.add(u.slug);
       }
     });
 
-    // Auto-generated Hubs (from distinct Note fields)
-    noteUnivs.forEach(name => {
-      if (name) {
-        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    // Auto-generated Hubs
+    dbNotes.forEach(n => {
+      if (n.university) {
+        const slug = n.university.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
         if (!submittedUnivSlugs.has(slug)) {
           urls.push(`${APP_URL}/univ/${slug}`);
           submittedUnivSlugs.add(slug);
@@ -111,9 +71,7 @@ export async function GET(request) {
     // 🚀 Submit to IndexNow API
     const response = await fetch("https://api.indexnow.org/indexnow", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-      },
+      headers: { "Content-Type": "application/json; charset=utf-8" },
       body: JSON.stringify({
         host: "www.stuhive.in",
         key: INDEXNOW_KEY,
@@ -134,7 +92,7 @@ export async function GET(request) {
     }
 
   } catch (error) {
-    console.error("IndexNow Submission Error:", error);
+    console.error("IndexNow Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
